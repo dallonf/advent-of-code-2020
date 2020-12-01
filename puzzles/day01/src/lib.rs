@@ -24,6 +24,26 @@ pub fn correct_expense_report(entries: &[i32]) -> Option<i32> {
         .map(|(i, missing)| i * missing)
 }
 
+pub fn correct_expense_report_mk_2(entries: &[i32]) -> Option<i32> {
+    let mut options = entries.iter().copied().flat_map(|i| {
+        entries
+            .iter()
+            .copied()
+            .filter(move |i2| &i != i2)
+            .flat_map(move |i2| {
+                entries
+                    .iter()
+                    .copied()
+                    .filter(move |i3| &i != i3)
+                    .map(move |i3| (i, i2, i3))
+            })
+    });
+
+    options
+        .find(|(i, i2, i3)| i + i2 + i3 == 2020)
+        .map(|(i, i2, i3)| i * i2 * i3)
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -40,11 +60,16 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_cases() {
+        let test_data = vec![1721, 979, 366, 299, 675, 1456];
+        assert_eq!(correct_expense_report_mk_2(&test_data), Some(241861950));
+    }
+    #[test]
+    fn answer() {
+        assert_eq!(correct_expense_report_mk_2(&PUZZLE_INPUT), Some(214486272));
+    }
+}
