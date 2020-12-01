@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+pub mod imperative;
+
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<i32> =
         parse_input(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
