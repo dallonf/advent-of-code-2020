@@ -55,6 +55,19 @@ pub fn password_is_valid(input: &PasswordEntry) -> bool {
     char_count >= input.min && char_count <= input.max
 }
 
+pub fn password_is_valid_mk_2(input: &PasswordEntry) -> bool {
+    let char_at_min = input.password.chars().nth(input.min - 1).unwrap() == input.validate_char;
+    let char_at_max = input.password.chars().nth(input.max - 1).unwrap() == input.validate_char;
+    (char_at_min || char_at_max) && !(char_at_min && char_at_max)
+}
+
+pub fn count_valid_passwords_mk_2(
+    input: &[PasswordEntry],
+    validator: fn(&PasswordEntry) -> bool,
+) -> usize {
+    input.iter().filter(|x| validator(x)).count()
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -93,11 +106,38 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn test_password_is_valid() {
+        assert_eq!(
+            password_is_valid_mk_2(&parse_line("1-3 a: abcde").unwrap()),
+            true,
+            "1-3 a: abcde"
+        );
+        assert_eq!(
+            password_is_valid_mk_2(&parse_line("2-9 c: ccccccccc").unwrap()),
+            false,
+            "2-9 c: ccccccccc"
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        let input = parse_lines(&vec!["1-3 a: abcde", "1-3 b: cdefg", "2-9 c: ccccccccc"]).unwrap();
+        assert_eq!(
+            count_valid_passwords_mk_2(&input, password_is_valid_mk_2),
+            1
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            count_valid_passwords_mk_2(PUZZLE_INPUT_PARSED.as_ref(), password_is_valid_mk_2),
+            294
+        );
+    }
+}
