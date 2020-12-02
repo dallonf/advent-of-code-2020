@@ -19,9 +19,9 @@ lazy_static! {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PasswordEntry {
-    min: u8,
-    max: u8,
-    char: char,
+    min: usize,
+    max: usize,
+    validate_char: char,
     password: String,
 }
 
@@ -35,11 +35,24 @@ pub fn parse_line(line: &str) -> Result<PasswordEntry, String> {
         .ok_or(format!("Can't parse line: {}", line))?;
 
     Ok(PasswordEntry {
-        min: u8::from_str(&result[1]).unwrap(),
-        max: u8::from_str(&result[2]).unwrap(),
-        char: char::from_str(&result[3]).unwrap(),
+        min: usize::from_str(&result[1]).unwrap(),
+        max: usize::from_str(&result[2]).unwrap(),
+        validate_char: char::from_str(&result[3]).unwrap(),
         password: result[4].to_string(),
     })
+}
+
+pub fn count_valid_passwords(input: &[PasswordEntry]) -> usize {
+    input.iter().filter(|x| password_is_valid(x)).count()
+}
+
+pub fn password_is_valid(input: &PasswordEntry) -> bool {
+    let char_count = input
+        .password
+        .chars()
+        .filter(|x| x == &input.validate_char)
+        .count();
+    char_count >= input.min && char_count <= input.max
 }
 
 #[cfg(test)]
@@ -53,22 +66,31 @@ mod part_one {
             Ok(PasswordEntry {
                 min: 1,
                 max: 3,
-                char: 'a',
+                validate_char: 'a',
                 password: "abcde".into()
             })
             .into()
         )
     }
 
-    // #[test]
-    // fn test_cases() {
-    //     assert_eq!(1 + 1, 2);
-    // }
+    #[test]
+    fn test_password_is_valid() {
+        assert_eq!(
+            password_is_valid(&parse_line("1-3 a: abcde").unwrap()),
+            true
+        );
+    }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn test_case() {
+        let input = parse_lines(&vec!["1-3 a: abcde", "1-3 b: cdefg", "2-9 c: ccccccccc"]).unwrap();
+        assert_eq!(count_valid_passwords(&input), 2);
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(count_valid_passwords(PUZZLE_INPUT_PARSED.as_ref()), 465);
+    }
 }
 
 // #[cfg(test)]
