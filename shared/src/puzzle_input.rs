@@ -6,6 +6,17 @@ pub fn lines(puzzle_input: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn to_strs<'a>(input: &'a Vec<String>) -> Vec<&'a str> {
-    return input.as_slice().iter().map(|x| x.as_str()).collect();
+pub trait PuzzleInput {
+    fn to_strs<'a>(&'a self) -> Vec<&'a str>;
+}
+
+impl PuzzleInput for &[String] {
+    fn to_strs<'a>(&'a self) -> Vec<&'a str> {
+        self.iter().map(|x| x.as_str()).collect()
+    }
+}
+impl PuzzleInput for Vec<String> {
+    fn to_strs<'a>(&'a self) -> Vec<&'a str> {
+        self.iter().map(|x| x.as_str()).collect()
+    }
 }
