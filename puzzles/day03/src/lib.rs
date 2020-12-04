@@ -12,12 +12,10 @@ pub struct TreeMap {
 pub type Slope = (usize, usize);
 
 lazy_static! {
-    static ref PUZZLE_INPUT: TreeMap = parse_input(&puzzle_input::to_strs(&puzzle_input::lines(
-        include_str!("puzzle_input.txt")
-    )));
-    static ref TEST_INPUT: TreeMap = parse_input(&puzzle_input::to_strs(&puzzle_input::lines(
-        include_str!("test_input.txt")
-    )));
+    static ref PUZZLE_INPUT: TreeMap =
+        parse_input(&puzzle_input::lines(include_str!("puzzle_input.txt")).to_strs());
+    static ref TEST_INPUT: TreeMap =
+        parse_input(&puzzle_input::lines(include_str!("test_input.txt")).to_strs());
     static ref SLOPES: Vec<Slope> = vec![(1, 1), (3, 1), (5, 1), (7, 1), (1, 2)];
 }
 
