@@ -73,6 +73,28 @@ impl FromStr for BoardingPassSeat {
     }
 }
 
+pub fn find_missing_seat(seats: &[BoardingPassSeat]) -> Result<u32, String> {
+    let mut ids: Vec<u32> = seats.iter().map(BoardingPassSeat::seat_id).collect();
+    ids.sort();
+
+    ids.iter()
+        .copied()
+        .scan(None, |prev_id, id| {
+            let result = (prev_id.clone(), id);
+            *prev_id = Some(id);
+            Some(result)
+        })
+        // locate the ID that breaks the pattern of prev_id = id - 1 and is actually 2 away, implying one
+        // was skipped in the sequence
+        .find(|(prev_id, id)| {
+            println!("🥐 {:?}, {}", prev_id, id);
+            prev_id.map_or(false, |prev_id| *id == prev_id + 2)
+        })
+        .map_or(Err("Couldn't find a missing ID".to_string()), |(_, id)| {
+            Ok(id - 1)
+        })
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -111,16 +133,19 @@ mod part_one {
                 .map(BoardingPassSeat::seat_id)
                 .max()
                 .unwrap(),
-            0
+            926
         );
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn answer() {
+        let result = find_missing_seat(&PUZZLE_INPUT);
+        assert!(result > Ok(383)); // found a wrong answer
+        assert_eq!(result, Ok(657));
+    }
+}
