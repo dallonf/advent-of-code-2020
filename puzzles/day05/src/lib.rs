@@ -2,6 +2,7 @@
 
 use core::fmt::Debug;
 use shared::prelude::*;
+use std::error::Error;
 use std::str::FromStr;
 
 pub struct BoardingPassSeat {
@@ -37,7 +38,7 @@ impl Debug for BoardingPassSeat {
 }
 
 impl FromStr for BoardingPassSeat {
-    type Err = String;
+    type Err = Box<dyn Error>;
 
     fn from_str(input: &str) -> std::result::Result<Self, Self::Err> {
         let row = input
@@ -73,7 +74,7 @@ impl FromStr for BoardingPassSeat {
     }
 }
 
-pub fn find_missing_seat(seats: &[BoardingPassSeat]) -> Result<u32, String> {
+pub fn find_missing_seat(seats: &[BoardingPassSeat]) -> Result<u32, Box<dyn Error>> {
     let mut ids: Vec<u32> = seats.iter().map(BoardingPassSeat::seat_id).collect();
     ids.sort();
 
@@ -90,7 +91,7 @@ pub fn find_missing_seat(seats: &[BoardingPassSeat]) -> Result<u32, String> {
             println!("🥐 {:?}, {}", prev_id, id);
             prev_id.map_or(false, |prev_id| *id == prev_id + 2)
         })
-        .map_or(Err("Couldn't find a missing ID".to_string()), |(_, id)| {
+        .map_or(Err("Couldn't find a missing ID".into()), |(_, id)| {
             Ok(id - 1)
         })
 }
@@ -144,8 +145,8 @@ mod part_two {
 
     #[test]
     fn answer() {
-        let result = find_missing_seat(&PUZZLE_INPUT);
-        assert!(result > Ok(383)); // found a wrong answer
-        assert_eq!(result, Ok(657));
+        let result = find_missing_seat(&PUZZLE_INPUT).unwrap();
+        assert!(result > 383); // found a wrong answer
+        assert_eq!(result, 657);
     }
 }
