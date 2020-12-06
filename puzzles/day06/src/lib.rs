@@ -18,12 +18,8 @@ pub fn parse_groups(inputs: &[String]) -> Vec<Vec<String>> {
         .collect()
 }
 
-pub fn unique_answers_per_group<T, TGroup>(groups: &[TGroup]) -> usize
-where
-    T: AsRef<str>,
-    TGroup: AsRef<[T]>,
-{
-    groups.iter().map(|x| unique_answers(x.as_ref())).sum()
+pub fn unique_answers_per_group<TGroup: StringList>(groups: &[TGroup]) -> usize {
+    groups.iter().map(|x| unique_answers(&x.to_strs())).sum()
 }
 
 fn unique_answers<T>(group: &[T]) -> usize
@@ -31,7 +27,6 @@ where
     T: AsRef<str>,
 {
     let group: Vec<&str> = group.iter().map(|x| x.as_ref()).collect();
-
     group
         .join("")
         .chars()
@@ -42,20 +37,12 @@ where
         .len()
 }
 
-pub fn unanimous_answers_per_group<T, TGroup>(groups: &[TGroup]) -> usize
-where
-    T: AsRef<str>,
-    TGroup: AsRef<[T]>,
-{
-    groups.iter().map(|x| unanimous_answers(x.as_ref())).sum()
+pub fn unanimous_answers_per_group<TGroup: StringList>(groups: &[TGroup]) -> usize {
+    groups.iter().map(|x| unanimous_answers(&x.to_strs())).sum()
 }
 
-fn unanimous_answers<T>(group: &[T]) -> usize
-where
-    T: AsRef<str>,
-{
+fn unanimous_answers(group: &[&str]) -> usize {
     let group: Vec<&str> = group.iter().map(|x| x.as_ref()).collect();
-
     group
         .join("")
         .chars()

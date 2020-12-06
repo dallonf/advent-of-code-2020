@@ -6,17 +6,28 @@ pub fn lines(puzzle_input: &str) -> Vec<String> {
         .collect()
 }
 
-pub trait PuzzleInput {
+pub trait StringList {
     fn to_strs<'a>(&'a self) -> Vec<&'a str>;
 }
 
-impl PuzzleInput for &[String] {
+impl StringList for &[String] {
     fn to_strs<'a>(&'a self) -> Vec<&'a str> {
         self.iter().map(|x| x.as_str()).collect()
     }
 }
-impl PuzzleInput for Vec<String> {
+impl StringList for Vec<String> {
     fn to_strs<'a>(&'a self) -> Vec<&'a str> {
         self.iter().map(|x| x.as_str()).collect()
+    }
+}
+
+impl StringList for &[&str] {
+    fn to_strs<'a>(&'a self) -> Vec<&'a str> {
+        self.iter().copied().collect()
+    }
+}
+impl StringList for Vec<&str> {
+    fn to_strs<'a>(&'a self) -> Vec<&'a str> {
+        self.clone()
     }
 }
