@@ -6,9 +6,9 @@ use shared::prelude::*;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<Vec<&'static str>> =
-        parse_groups(&puzzle_input::lines_strs(include_str!("puzzle_input.txt")));
+        parse_groups(&puzzle_input::lines(include_str!("puzzle_input.txt")));
     static ref TEST_INPUT: Vec<Vec<&'static str>> =
-        parse_groups(&puzzle_input::lines_strs(include_str!("test_input.txt")));
+        parse_groups(&puzzle_input::lines(include_str!("test_input.txt")));
 }
 
 pub fn parse_groups<'a>(inputs: &[&'a str]) -> Vec<Vec<&'a str>> {

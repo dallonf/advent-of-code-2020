@@ -12,7 +12,7 @@ lazy_static! {
         parse_input(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
 }
 
-pub fn parse_input(input: &[String]) -> Result<Vec<i32>, ParseIntError> {
+pub fn parse_input(input: &[&str]) -> Result<Vec<i32>, ParseIntError> {
     input.iter().map(|x| i32::from_str(x)).collect()
 }
 

@@ -2,18 +2,13 @@
 
 use regex::Regex;
 use shared::prelude::*;
+use std::error::Error;
 use std::str::FromStr;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Vec<String> = puzzle_input::lines(include_str!("puzzle_input.txt"));
-    static ref PUZZLE_INPUT_PARSED: Vec<PasswordEntry> = parse_lines(
-        &PUZZLE_INPUT
-            .as_slice()
-            .iter()
-            .map(|x| x.as_str())
-            .collect::<Vec<&str>>()
-    )
-    .unwrap();
+    static ref PUZZLE_INPUT: Vec<&'static str> =
+        puzzle_input::lines(include_str!("puzzle_input.txt"));
+    static ref PUZZLE_INPUT_PARSED: Vec<PasswordEntry> = parse_lines(&PUZZLE_INPUT).unwrap();
     static ref REGEX: Regex = Regex::new(r"(\d+)\-(\d+) ([a-z]): ([a-z]+)").unwrap();
 }
 
@@ -25,11 +20,11 @@ pub struct PasswordEntry {
     password: String,
 }
 
-pub fn parse_lines(lines: &[&str]) -> Result<Vec<PasswordEntry>, String> {
+pub fn parse_lines(lines: &[&str]) -> Result<Vec<PasswordEntry>, Box<dyn Error>> {
     lines.iter().map(|x| parse_line(x)).collect()
 }
 
-pub fn parse_line(line: &str) -> Result<PasswordEntry, String> {
+pub fn parse_line(line: &str) -> Result<PasswordEntry, Box<dyn Error>> {
     let result = REGEX
         .captures(line)
         .ok_or(format!("Can't parse line: {}", line))?;
@@ -75,14 +70,13 @@ mod part_one {
     #[test]
     fn test_parse_line() {
         assert_eq!(
-            parse_line("1-3 a: abcde"),
-            Ok(PasswordEntry {
+            parse_line("1-3 a: abcde").unwrap(),
+            PasswordEntry {
                 min: 1,
                 max: 3,
                 validate_char: 'a',
                 password: "abcde".into()
-            })
-            .into()
+            }
         )
     }
 
