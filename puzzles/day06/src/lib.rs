@@ -11,18 +11,27 @@ lazy_static! {
         parse_groups(&puzzle_input::lines(include_str!("test_input.txt")));
 }
 
-pub fn parse_groups<'a>(inputs: &[String]) -> Vec<Vec<String>> {
+pub fn parse_groups(inputs: &[String]) -> Vec<Vec<String>> {
     inputs
         .split(|x| x.trim().is_empty())
         .map(|x| x.to_vec())
         .collect()
 }
 
-pub fn unique_answers_per_group(groups: &[Vec<String>]) -> usize {
-    groups.iter().map(|x| unique_answers(&x.to_strs())).sum()
+pub fn unique_answers_per_group<T, TGroup>(groups: &[TGroup]) -> usize
+where
+    T: AsRef<str>,
+    TGroup: AsRef<[T]>,
+{
+    groups.iter().map(|x| unique_answers(x.as_ref())).sum()
 }
 
-fn unique_answers(group: &[&str]) -> usize {
+fn unique_answers<T>(group: &[T]) -> usize
+where
+    T: AsRef<str>,
+{
+    let group: Vec<&str> = group.iter().map(|x| x.as_ref()).collect();
+
     group
         .join("")
         .chars()
@@ -33,11 +42,20 @@ fn unique_answers(group: &[&str]) -> usize {
         .len()
 }
 
-pub fn unanimous_answers_per_group(groups: &[Vec<String>]) -> usize {
-    groups.iter().map(|x| unanimous_answers(&x.to_strs())).sum()
+pub fn unanimous_answers_per_group<T, TGroup>(groups: &[TGroup]) -> usize
+where
+    T: AsRef<str>,
+    TGroup: AsRef<[T]>,
+{
+    groups.iter().map(|x| unanimous_answers(x.as_ref())).sum()
 }
 
-fn unanimous_answers(group: &[&str]) -> usize {
+fn unanimous_answers<T>(group: &[T]) -> usize
+where
+    T: AsRef<str>,
+{
+    let group: Vec<&str> = group.iter().map(|x| x.as_ref()).collect();
+
     group
         .join("")
         .chars()
