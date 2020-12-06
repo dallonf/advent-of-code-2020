@@ -5,27 +5,24 @@ use std::collections::{HashMap, HashSet};
 use shared::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Vec<Vec<String>> =
-        parse_groups(&puzzle_input::lines(include_str!("puzzle_input.txt")));
-    static ref TEST_INPUT: Vec<Vec<String>> =
-        parse_groups(&puzzle_input::lines(include_str!("test_input.txt")));
+    static ref PUZZLE_INPUT: Vec<Vec<&'static str>> =
+        parse_groups(&puzzle_input::lines_strs(include_str!("puzzle_input.txt")));
+    static ref TEST_INPUT: Vec<Vec<&'static str>> =
+        parse_groups(&puzzle_input::lines_strs(include_str!("test_input.txt")));
 }
 
-pub fn parse_groups(inputs: &[String]) -> Vec<Vec<String>> {
+pub fn parse_groups<'a>(inputs: &[&'a str]) -> Vec<Vec<&'a str>> {
     inputs
         .split(|x| x.trim().is_empty())
         .map(|x| x.to_vec())
         .collect()
 }
 
-pub fn unique_answers_per_group<TGroup: StringList>(groups: &[TGroup]) -> usize {
-    groups.iter().map(|x| unique_answers(&x.to_strs())).sum()
+pub fn unique_answers_per_group<'a, TGroup: AsRef<[&'a str]>>(groups: &[TGroup]) -> usize {
+    groups.iter().map(|x| unique_answers(x.as_ref())).sum()
 }
 
-fn unique_answers<T>(group: &[T]) -> usize
-where
-    T: AsRef<str>,
-{
+fn unique_answers(group: &[&str]) -> usize {
     let group: Vec<&str> = group.iter().map(|x| x.as_ref()).collect();
     group
         .join("")
@@ -37,8 +34,8 @@ where
         .len()
 }
 
-pub fn unanimous_answers_per_group<TGroup: StringList>(groups: &[TGroup]) -> usize {
-    groups.iter().map(|x| unanimous_answers(&x.to_strs())).sum()
+pub fn unanimous_answers_per_group<'a, TGroup: AsRef<[&'a str]>>(groups: &[TGroup]) -> usize {
+    groups.iter().map(|x| unanimous_answers(&x.as_ref())).sum()
 }
 
 fn unanimous_answers(group: &[&str]) -> usize {

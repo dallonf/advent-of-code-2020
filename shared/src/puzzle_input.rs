@@ -6,6 +6,10 @@ pub fn lines(puzzle_input: &str) -> Vec<String> {
         .collect()
 }
 
+pub fn lines_strs(puzzle_input: &str) -> Vec<&str> {
+    puzzle_input.trim().lines().collect()
+}
+
 pub trait StringList {
     fn to_strs<'a>(&'a self) -> Vec<&'a str>;
 }
