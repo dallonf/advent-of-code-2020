@@ -8,13 +8,13 @@ type PassportRecord = HashMap<String, String>;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<PassportRecord> =
-        parse_input(&(&puzzle_input::lines(include_str!("puzzle_input.txt")).to_strs()));
+        parse_input(&(&puzzle_input::lines(include_str!("puzzle_input.txt"))));
     static ref PART_1_TEST_INPUT: Vec<PassportRecord> =
-        parse_input(&&puzzle_input::lines(include_str!("part_1_test_input.txt")).to_strs());
+        parse_input(&&puzzle_input::lines(include_str!("part_1_test_input.txt")));
     static ref PART_2_INVALID_TEST_INPUT: Vec<PassportRecord> =
-        parse_input(&&puzzle_input::lines(include_str!("part_2_invalid.txt")).to_strs());
+        parse_input(&&puzzle_input::lines(include_str!("part_2_invalid.txt")));
     static ref PART_2_VALID_TEST_INPUT: Vec<PassportRecord> =
-        parse_input(&&puzzle_input::lines(include_str!("part_2_valid.txt")).to_strs());
+        parse_input(&&puzzle_input::lines(include_str!("part_2_valid.txt")));
     static ref REQUIRED_ENTRIES: HashMap<&'static str, fn(&str) -> bool> = {
         let mut x = HashMap::<&str, fn(&str) -> bool>::new();
         x.insert("byr", is_valid_byr);

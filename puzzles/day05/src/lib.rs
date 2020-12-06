@@ -13,7 +13,6 @@ pub struct BoardingPassSeat {
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<BoardingPassSeat> =
         puzzle_input::lines(include_str!("puzzle_input.txt"))
-            .to_strs()
             .into_iter()
             .map(BoardingPassSeat::from_str)
             .collect::<Result<_, _>>()

@@ -3,7 +3,8 @@
 use shared::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Vec<String> = puzzle_input::lines(include_str!("puzzle_input.txt"));
+    static ref PUZZLE_INPUT: Vec<&'static str> =
+        puzzle_input::lines(include_str!("puzzle_input.txt"));
 }
 
 #[cfg(test)]
