@@ -1,6 +1,6 @@
 // Day 6: Custom Customs
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use shared::prelude::*;
 
@@ -33,6 +33,23 @@ fn unique_answers(group: &[&str]) -> usize {
         .len()
 }
 
+pub fn unanimous_answers_per_group(groups: &[Vec<String>]) -> usize {
+    groups.iter().map(|x| unanimous_answers(&x.to_strs())).sum()
+}
+
+fn unanimous_answers(group: &[&str]) -> usize {
+    group
+        .join("")
+        .chars()
+        .fold(HashMap::new(), |mut set, char| {
+            set.insert(char, set.get(&char).map_or(1, |x| x + 1));
+            set
+        })
+        .into_iter()
+        .filter(|(_, answers)| *answers == group.len())
+        .count()
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -43,21 +60,25 @@ mod part_one {
     }
 
     #[test]
-    fn test_cases() {
+    fn test_case() {
         assert_eq!(unique_answers_per_group(TEST_INPUT.as_ref()), 11)
     }
 
     #[test]
     fn answer() {
-        assert_eq!(unique_answers_per_group(PUZZLE_INPUT.as_ref()), 0)
+        assert_eq!(unique_answers_per_group(PUZZLE_INPUT.as_ref()), 6748)
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_case() {
+        assert_eq!(unanimous_answers_per_group(TEST_INPUT.as_ref()), 6)
+    }
+    #[test]
+    fn answer() {
+        assert_eq!(unanimous_answers_per_group(PUZZLE_INPUT.as_ref()), 3445)
+    }
+}
