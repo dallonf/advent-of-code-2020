@@ -9,7 +9,7 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone)]
-pub struct BagCollection(i32, String);
+pub struct BagCollection(usize, String);
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct BagRule {
@@ -19,11 +19,16 @@ pub struct BagRule {
 
 pub struct BagRuleGraph {
     children: HashMap<String, HashSet<BagCollection>>,
-    parents: HashMap<String, HashMap<String, i32>>,
+    parents: HashMap<String, HashMap<String, usize>>,
 }
 
 lazy_static! {
     static ref TEST_INPUT: Vec<BagRule> = puzzle_input::lines(include_str!("test_input.txt"))
+        .into_iter()
+        .map(BagRule::from_str)
+        .collect::<anyhow::Result<Vec<BagRule>>>()
+        .unwrap();
+    static ref TEST_INPUT_2: Vec<BagRule> = puzzle_input::lines(include_str!("test_input_2.txt"))
         .into_iter()
         .map(BagRule::from_str)
         .collect::<anyhow::Result<Vec<BagRule>>>()
@@ -102,7 +107,7 @@ pub fn get_possible_outer_bags<'a>(
     cache: &mut HashMap<String, HashSet<&'a str>>,
 ) -> HashSet<&'a str> {
     match cache.get(inner_bag_color) {
-        Some(result) => result.clone(),
+        Some(result) => result.to_owned(),
         None => {
             let result: HashSet<&str> = match bag_rules.parents.get(inner_bag_color) {
                 Some(possible_parents) => possible_parents
@@ -116,7 +121,31 @@ pub fn get_possible_outer_bags<'a>(
                     .collect::<HashSet<&str>>(),
                 None => HashSet::new(),
             };
-            cache.insert(inner_bag_color.to_string(), result.clone());
+            cache.insert(inner_bag_color.to_owned(), result.to_owned());
+            result
+        }
+    }
+}
+
+pub fn get_total_contained_bags(
+    outer_bag_color: &str,
+    bag_rules: &BagRuleGraph,
+    cache: &mut HashMap<String, usize>,
+) -> usize {
+    match cache.get(outer_bag_color) {
+        Some(result) => *result,
+        None => {
+            let result = match bag_rules.children.get(outer_bag_color) {
+                Some(bag_children) => bag_children
+                    .iter()
+                    .map(|BagCollection(n, inner_color)| {
+                        n * (1_usize + get_total_contained_bags(inner_color, &bag_rules, cache))
+                    })
+                    .sum(),
+                None => 0_usize,
+            };
+
+            cache.insert(outer_bag_color.to_owned(), result);
             result
         }
     }
@@ -168,11 +197,36 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_case() {
+        let result = get_total_contained_bags(
+            "shiny gold",
+            &BagRuleGraph::from(TEST_INPUT.as_ref()),
+            &mut HashMap::new(),
+        );
+        assert_eq!(result, 32);
+    }
+
+    #[test]
+    fn test_case_2() {
+        let result = get_total_contained_bags(
+            "shiny gold",
+            &BagRuleGraph::from(TEST_INPUT_2.as_ref()),
+            &mut HashMap::new(),
+        );
+        assert_eq!(result, 126);
+    }
+
+    #[test]
+    fn answer() {
+        let result = get_total_contained_bags(
+            "shiny gold",
+            &BagRuleGraph::from(PUZZLE_INPUT.as_ref()),
+            &mut HashMap::new(),
+        );
+        assert_eq!(result, 54803);
+    }
+}
