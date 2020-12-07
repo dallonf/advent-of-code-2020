@@ -85,17 +85,25 @@ impl From<&[BagRule]> for BagRuleGraph {
             .map(|rule| (rule.color.clone(), rule.contains.iter().cloned().collect()))
             .collect();
 
-        let mut parents = HashMap::new();
-        for rule in input.iter() {
-            for BagCollection(n, child_color) in rule.contains.iter() {
-                if !parents.contains_key(child_color) {
-                    parents.insert(child_color.clone(), HashMap::new());
-                }
-                let child_entry = parents.get_mut(child_color).unwrap();
+        let parents = input
+            .iter()
+            .flat_map(|rule| {
+                rule.contains
+                    .iter()
+                    .map(move |child_rule| (&rule.color, child_rule))
+            })
+            .fold(
+                HashMap::new(),
+                |mut parents, (parent_color, BagCollection(n, child_color))| {
+                    if !parents.contains_key(child_color) {
+                        parents.insert(child_color.clone(), HashMap::new());
+                    }
+                    let child_entry = parents.get_mut(child_color).unwrap();
+                    child_entry.insert(parent_color.to_owned(), *n);
 
-                child_entry.insert(rule.color.clone(), *n);
-            }
-        }
+                    parents
+                },
+            );
 
         BagRuleGraph { children, parents }
     }
