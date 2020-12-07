@@ -25,11 +25,16 @@ pub struct BagRuleGraph {
 }
 
 lazy_static! {
-    static ref TEST_INPUT: Vec<BagRule> =
-        puzzle_input::lines(include_str!("test_input.txt")).into_iter().map(BagRule::from_str).collect::<anyhow::Result<Vec<BagRule>>>().unwrap();
-
-    // static ref PUZZLE_INPUT: Vec<&'static str> =
-    //     puzzle_input::lines(include_str!("puzzle_input.txt"));
+    static ref TEST_INPUT: Vec<BagRule> = puzzle_input::lines(include_str!("test_input.txt"))
+        .into_iter()
+        .map(BagRule::from_str)
+        .collect::<anyhow::Result<Vec<BagRule>>>()
+        .unwrap();
+    static ref PUZZLE_INPUT: Vec<BagRule> = puzzle_input::lines(include_str!("puzzle_input.txt"))
+        .into_iter()
+        .map(BagRule::from_str)
+        .collect::<anyhow::Result<Vec<BagRule>>>()
+        .unwrap();
 }
 
 lazy_static! {
@@ -83,7 +88,7 @@ impl From<&[BagRule]> for BagRuleGraph {
                 if !parents.contains_key(child_color) {
                     parents.insert(child_color.clone(), HashMap::new());
                 }
-                let mut child_entry = parents.get_mut(child_color).unwrap();
+                let child_entry = parents.get_mut(child_color).unwrap();
 
                 child_entry.insert(rule.color.clone(), *n);
             }
@@ -96,7 +101,7 @@ impl From<&[BagRule]> for BagRuleGraph {
 pub fn get_possible_outer_bags(
     inner_bag_color: &str,
     bag_rules: &BagRuleGraph,
-    mut cache: &mut HashMap<String, HashSet<String>>,
+    cache: &mut HashMap<String, HashSet<String>>,
 ) -> HashSet<String> {
     match cache.get(inner_bag_color) {
         Some(result) => result.clone(),
@@ -110,15 +115,10 @@ pub fn get_possible_outer_bags(
                 possible_parents
                     .iter()
                     .flat_map(|(parent_color, _)| -> Vec<String> {
-                        let outer_bags =
-                            get_possible_outer_bags(parent_color, bag_rules, &mut cache);
-
-                        if outer_bags.is_empty() {
-                            // This parent has no outer bags, so it can be added as a possible outer bag itself
-                            vec![parent_color.clone()].into_iter().collect()
-                        } else {
-                            outer_bags.into_iter().collect()
-                        }
+                        get_possible_outer_bags(parent_color, bag_rules, cache)
+                            .into_iter()
+                            .chain(std::iter::once(parent_color.clone()))
+                            .collect()
                     })
                     .collect::<HashSet<String>>()
             };
@@ -168,10 +168,16 @@ mod part_one {
         assert_eq!(result.len(), 4);
     }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        let result = get_possible_outer_bags(
+            "shiny gold",
+            &BagRuleGraph::from(PUZZLE_INPUT.as_ref()),
+            &mut HashMap::new(),
+        );
+
+        assert_eq!(result.len(), 155);
+    }
 }
 
 // #[cfg(test)]
