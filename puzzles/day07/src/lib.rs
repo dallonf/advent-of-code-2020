@@ -5,6 +5,7 @@ use regex::Regex;
 use shared::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::convert::From;
+use std::hash::Hash;
 use std::str::FromStr;
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone)]
@@ -96,9 +97,9 @@ impl From<&[BagRule]> for BagRuleGraph {
 }
 
 pub fn get_possible_outer_bags<'a>(
-    inner_bag_color: &'a str,
+    inner_bag_color: &'_ str,
     bag_rules: &'a BagRuleGraph,
-    cache: &mut HashMap<&'a str, HashSet<&'a str>>,
+    cache: &mut HashMap<String, HashSet<&'a str>>,
 ) -> HashSet<&'a str> {
     match cache.get(inner_bag_color) {
         Some(result) => result.clone(),
@@ -115,7 +116,7 @@ pub fn get_possible_outer_bags<'a>(
                     .collect::<HashSet<&str>>(),
                 None => HashSet::new(),
             };
-            cache.insert(inner_bag_color, result.clone());
+            cache.insert(inner_bag_color.to_string(), result.clone());
             result
         }
     }
