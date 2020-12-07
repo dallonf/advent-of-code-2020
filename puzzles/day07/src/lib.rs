@@ -3,21 +3,30 @@
 use anyhow::anyhow;
 use regex::Regex;
 use shared::prelude::*;
-use std::collections::HashSet;
+use std::convert::From;
 use std::str::FromStr;
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
-#[derive(Eq, PartialEq, Debug, Hash)]
-struct BagCollection(i32, String);
+#[derive(Eq, PartialEq, Debug, Hash, Clone)]
+pub struct BagCollection(i32, String);
 
 #[derive(Eq, PartialEq, Debug)]
-struct BagRule {
+pub struct BagRule {
     color: String,
-    allowed: HashSet<BagCollection>,
+    contains: HashSet<BagCollection>,
+}
+
+pub struct BagRuleGraph {
+    children: HashMap<String, HashSet<BagCollection>>,
+    parents: HashMap<String, HashMap<String, i32>>,
 }
 
 lazy_static! {
-    static ref TEST_INPUT: Vec<&'static str> =
-        puzzle_input::lines(include_str!("test_input.txt"));
+    static ref TEST_INPUT: Vec<BagRule> =
+        puzzle_input::lines(include_str!("test_input.txt")).into_iter().map(BagRule::from_str).collect::<anyhow::Result<Vec<BagRule>>>().unwrap();
 
     // static ref PUZZLE_INPUT: Vec<&'static str> =
     //     puzzle_input::lines(include_str!("puzzle_input.txt"));
@@ -43,7 +52,7 @@ impl FromStr for BagRule {
 
         Ok(BagRule {
             color: matches[1].to_string(),
-            allowed: allowed?,
+            contains: allowed?,
         })
     }
 }
@@ -57,9 +66,65 @@ impl FromStr for BagCollection {
             None => Err(anyhow!("Didn't match regex: {}", input)),
         }?;
 
-        println!("{:?}", matches);
-
         Ok(BagCollection(matches[1].parse()?, matches[2].into()))
+    }
+}
+
+impl From<&[BagRule]> for BagRuleGraph {
+    fn from(input: &[BagRule]) -> Self {
+        let children = input
+            .iter()
+            .map(|rule| (rule.color.clone(), rule.contains.iter().cloned().collect()))
+            .collect();
+
+        let mut parents = HashMap::new();
+        for rule in input.iter() {
+            for BagCollection(n, child_color) in rule.contains.iter() {
+                if !parents.contains_key(child_color) {
+                    parents.insert(child_color.clone(), HashMap::new());
+                }
+                let mut child_entry = parents.get_mut(child_color).unwrap();
+
+                child_entry.insert(rule.color.clone(), *n);
+            }
+        }
+
+        BagRuleGraph { children, parents }
+    }
+}
+
+pub fn get_possible_outer_bags(
+    inner_bag_color: &str,
+    bag_rules: &BagRuleGraph,
+    mut cache: &mut HashMap<String, HashSet<String>>,
+) -> HashSet<String> {
+    match cache.get(inner_bag_color) {
+        Some(result) => result.clone(),
+        None => {
+            let result: HashSet<String> = {
+                let possible_parents = match bag_rules.parents.get(inner_bag_color) {
+                    Some(x) => Cow::Borrowed(x),
+                    None => Cow::Owned(HashMap::new()),
+                };
+
+                possible_parents
+                    .iter()
+                    .flat_map(|(parent_color, _)| -> Vec<String> {
+                        let outer_bags =
+                            get_possible_outer_bags(parent_color, bag_rules, &mut cache);
+
+                        if outer_bags.is_empty() {
+                            // This parent has no outer bags, so it can be added as a possible outer bag itself
+                            vec![parent_color.clone()].into_iter().collect()
+                        } else {
+                            outer_bags.into_iter().collect()
+                        }
+                    })
+                    .collect::<HashSet<String>>()
+            };
+            cache.insert(inner_bag_color.to_string(), result.clone());
+            result
+        }
     }
 }
 
@@ -74,7 +139,7 @@ mod part_one {
                 .unwrap(),
             BagRule {
                 color: "light red".to_string(),
-                allowed: vec![
+                contains: vec![
                     BagCollection(1, "bright white".to_string()),
                     BagCollection(2, "muted yellow".to_string())
                 ]
@@ -87,15 +152,21 @@ mod part_one {
             BagRule::from_str("faded blue bags contain no other bags.").unwrap(),
             BagRule {
                 color: "faded blue".to_string(),
-                allowed: HashSet::new(),
+                contains: HashSet::new(),
             }
         );
     }
 
-    // #[test]
-    // fn test_cases() {
-    //     assert_eq!(1 + 1, 2);
-    // }
+    #[test]
+    fn test_cases() {
+        let result = get_possible_outer_bags(
+            "shiny gold",
+            &BagRuleGraph::from(TEST_INPUT.as_ref()),
+            &mut HashMap::new(),
+        );
+
+        assert_eq!(result.len(), 4);
+    }
 
     // #[test]
     // fn answer() {
