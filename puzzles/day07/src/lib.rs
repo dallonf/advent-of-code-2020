@@ -3,12 +3,9 @@
 use anyhow::anyhow;
 use regex::Regex;
 use shared::prelude::*;
+use std::collections::{HashMap, HashSet};
 use std::convert::From;
 use std::str::FromStr;
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-};
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone)]
 pub struct BagCollection(i32, String);
@@ -98,31 +95,27 @@ impl From<&[BagRule]> for BagRuleGraph {
     }
 }
 
-pub fn get_possible_outer_bags(
-    inner_bag_color: &str,
-    bag_rules: &BagRuleGraph,
-    cache: &mut HashMap<String, HashSet<String>>,
-) -> HashSet<String> {
+pub fn get_possible_outer_bags<'a>(
+    inner_bag_color: &'a str,
+    bag_rules: &'a BagRuleGraph,
+    cache: &mut HashMap<&'a str, HashSet<&'a str>>,
+) -> HashSet<&'a str> {
     match cache.get(inner_bag_color) {
         Some(result) => result.clone(),
         None => {
-            let result: HashSet<String> = {
-                let possible_parents = match bag_rules.parents.get(inner_bag_color) {
-                    Some(x) => Cow::Borrowed(x),
-                    None => Cow::Owned(HashMap::new()),
-                };
-
-                possible_parents
+            let result: HashSet<&str> = match bag_rules.parents.get(inner_bag_color) {
+                Some(possible_parents) => possible_parents
                     .iter()
-                    .flat_map(|(parent_color, _)| -> Vec<String> {
+                    .flat_map(|(parent_color, _)| -> Vec<&str> {
                         get_possible_outer_bags(parent_color, bag_rules, cache)
                             .into_iter()
-                            .chain(std::iter::once(parent_color.clone()))
+                            .chain(std::iter::once(parent_color.as_str()))
                             .collect()
                     })
-                    .collect::<HashSet<String>>()
+                    .collect::<HashSet<&str>>(),
+                None => HashSet::new(),
             };
-            cache.insert(inner_bag_color.to_string(), result.clone());
+            cache.insert(inner_bag_color, result.clone());
             result
         }
     }
@@ -159,22 +152,16 @@ mod part_one {
 
     #[test]
     fn test_cases() {
-        let result = get_possible_outer_bags(
-            "shiny gold",
-            &BagRuleGraph::from(TEST_INPUT.as_ref()),
-            &mut HashMap::new(),
-        );
+        let rules = BagRuleGraph::from(TEST_INPUT.as_ref());
+        let result = get_possible_outer_bags("shiny gold", &rules, &mut HashMap::new());
 
         assert_eq!(result.len(), 4);
     }
 
     #[test]
     fn answer() {
-        let result = get_possible_outer_bags(
-            "shiny gold",
-            &BagRuleGraph::from(PUZZLE_INPUT.as_ref()),
-            &mut HashMap::new(),
-        );
+        let rules = BagRuleGraph::from(PUZZLE_INPUT.as_ref());
+        let result = get_possible_outer_bags("shiny gold", &rules, &mut HashMap::new());
 
         assert_eq!(result.len(), 155);
     }
