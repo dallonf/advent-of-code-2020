@@ -1,6 +1,6 @@
 // Day 8: Handheld Halting
 
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 use shared::prelude::*;
 
@@ -18,8 +18,17 @@ pub struct Instruction {
 }
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Vec<&'static str> =
-        puzzle_input::lines(include_str!("puzzle_input.txt"));
+    static ref TEST_INPUT: Vec<Instruction> = puzzle_input::lines(include_str!("test_input.txt"))
+        .into_iter()
+        .map(Instruction::from_str)
+        .collect::<anyhow::Result<Vec<_>>>()
+        .unwrap();
+    static ref PUZZLE_INPUT: Vec<Instruction> =
+        puzzle_input::lines(include_str!("puzzle_input.txt"))
+            .into_iter()
+            .map(Instruction::from_str)
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
 }
 
 impl FromStr for Instruction {
@@ -44,6 +53,46 @@ impl FromStr for Instruction {
             argument,
         })
     }
+}
+
+pub fn get_accumulator_before_loop(instructions: &[Instruction]) -> anyhow::Result<i32> {
+    fn accumulator_before_loop_step(
+        instructions: &[Instruction],
+        mut visit_index: usize,
+        mut accumulator: i32,
+        mut indexes_already_run: HashSet<usize>,
+    ) -> anyhow::Result<i32> {
+        if indexes_already_run.contains(&visit_index) {
+            return Ok(accumulator);
+        }
+        indexes_already_run.insert(visit_index);
+
+        let instruction = instructions.get(visit_index).map_or_else(
+            || Err(anyhow!("No instruction at index: {}", visit_index)),
+            |x| Ok(x),
+        )?;
+
+        match instruction.operation {
+            OperationCode::Nop => {
+                visit_index += 1;
+            }
+            OperationCode::Acc => {
+                accumulator += instruction.argument;
+                visit_index += 1;
+            }
+            OperationCode::Jmp => {
+                let new_index = visit_index as i32 + instruction.argument;
+                if new_index < 0 || new_index > instructions.len() as i32 {
+                    return Err(anyhow!("jumped to index out of bounds: {}", new_index));
+                }
+                visit_index = new_index as usize;
+            }
+        };
+
+        accumulator_before_loop_step(instructions, visit_index, accumulator, indexes_already_run)
+    }
+
+    accumulator_before_loop_step(instructions, 0, 0, HashSet::new())
 }
 
 #[cfg(test)]
@@ -75,10 +124,15 @@ mod part_one {
         );
     }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn test_case() {
+        assert_eq!(get_accumulator_before_loop(&TEST_INPUT).unwrap(), 5);
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(get_accumulator_before_loop(&PUZZLE_INPUT).unwrap(), 0);
+    }
 }
 
 // #[cfg(test)]
