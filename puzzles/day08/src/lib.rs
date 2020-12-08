@@ -55,15 +55,25 @@ impl FromStr for Instruction {
     }
 }
 
-pub fn get_accumulator_before_loop(instructions: &[Instruction]) -> anyhow::Result<i32> {
-    fn accumulator_before_loop_step(
+#[derive(Debug)]
+pub enum ExecutionResult {
+    Loop(i32),
+    Terminate(i32),
+}
+
+pub fn execute(instructions: &[Instruction]) -> anyhow::Result<ExecutionResult> {
+    fn step(
         instructions: &[Instruction],
         mut visit_index: usize,
         mut accumulator: i32,
         mut indexes_already_run: HashSet<usize>,
-    ) -> anyhow::Result<i32> {
+    ) -> anyhow::Result<ExecutionResult> {
+        if visit_index == instructions.len() {
+            return Ok(ExecutionResult::Terminate(accumulator));
+        }
+
         if indexes_already_run.contains(&visit_index) {
-            return Ok(accumulator);
+            return Ok(ExecutionResult::Loop(accumulator));
         }
         indexes_already_run.insert(visit_index);
 
@@ -89,11 +99,23 @@ pub fn get_accumulator_before_loop(instructions: &[Instruction]) -> anyhow::Resu
             }
         };
 
-        accumulator_before_loop_step(instructions, visit_index, accumulator, indexes_already_run)
+        step(instructions, visit_index, accumulator, indexes_already_run)
     }
 
-    accumulator_before_loop_step(instructions, 0, 0, HashSet::new())
+    step(instructions, 0, 0, HashSet::new())
 }
+
+pub fn get_accumulator_before_loop(instructions: &[Instruction]) -> anyhow::Result<i32> {
+    match execute(instructions) {
+        Ok(ExecutionResult::Loop(accumulator)) => Ok(accumulator),
+        Ok(other) => Err(anyhow!("Unexpected result: {:?}", other)),
+        Err(err) => Err(err),
+    }
+}
+
+// pub fn fix_program(instructions: &[Instruction]) -> anyhow::Result<i32> {
+//     Ok(0)
+// }
 
 #[cfg(test)]
 mod part_one {
@@ -131,7 +153,7 @@ mod part_one {
 
     #[test]
     fn answer() {
-        assert_eq!(get_accumulator_before_loop(&PUZZLE_INPUT).unwrap(), 0);
+        assert_eq!(get_accumulator_before_loop(&PUZZLE_INPUT).unwrap(), 1930);
     }
 }
 
@@ -139,7 +161,9 @@ mod part_one {
 // mod part_two {
 //     use super::*;
 //     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
+//     fn test_case() {
+//         assert_eq!(fix_program(&TEST_INPUT).unwrap(), 6);
+//     }
+//     // #[test]
+//     // fn answer() {}
 // }
