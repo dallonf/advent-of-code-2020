@@ -1,2 +1,3 @@
-pub mod puzzle_input;
 pub mod prelude;
+pub mod puzzle_input;
+

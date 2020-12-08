@@ -1,5 +1,5 @@
 [package]
-name = "shared"
+name = "day08"
 version = "0.1.0"
 authors = ["Dallon Feldner <dallon.feldner@gmail.com>"]
 edition = "2018"
@@ -7,6 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lazy_static = "1.4.0"
-regex = "1"
-anyhow = "1.0"
+shared = { path = "../../shared" }
