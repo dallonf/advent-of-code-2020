@@ -4,14 +4,14 @@ use std::{collections::HashSet, str::FromStr};
 
 use shared::prelude::*;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum OperationCode {
     Nop,
     Acc,
     Jmp,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct Instruction {
     operation: OperationCode,
     argument: i32,
@@ -113,9 +113,46 @@ pub fn get_accumulator_before_loop(instructions: &[Instruction]) -> anyhow::Resu
     }
 }
 
-// pub fn fix_program(instructions: &[Instruction]) -> anyhow::Result<i32> {
-//     Ok(0)
-// }
+pub fn fix_program(instructions: &[Instruction]) -> anyhow::Result<i32> {
+    let result = instructions
+        .into_iter()
+        .enumerate()
+        .find_map(|(i, x)| match x.operation {
+            OperationCode::Nop => {
+                let mut adjusted: Vec<Instruction> = instructions.to_owned();
+                adjusted[i] = Instruction {
+                    operation: OperationCode::Jmp,
+                    argument: x.argument,
+                };
+
+                match execute(&adjusted) {
+                    Ok(ExecutionResult::Terminate(result)) => Some(Ok(result)),
+                    Ok(_) => None,
+                    Err(err) => Some(Err(err)),
+                }
+            }
+            OperationCode::Jmp => {
+                let mut adjusted = instructions.to_owned();
+                adjusted[i] = Instruction {
+                    operation: OperationCode::Nop,
+                    argument: x.argument,
+                };
+
+                match execute(&adjusted) {
+                    Ok(ExecutionResult::Terminate(result)) => Some(Ok(result)),
+                    Ok(_) => None,
+                    Err(err) => Some(Err(err)),
+                }
+            }
+            OperationCode::Acc => None,
+        });
+
+    match result {
+        Some(Ok(result)) => Ok(result),
+        Some(Err(err)) => Err(err),
+        None => Err(anyhow!("Couldn't find a fix")),
+    }
+}
 
 #[cfg(test)]
 mod part_one {
@@ -157,13 +194,16 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_case() {
-//         assert_eq!(fix_program(&TEST_INPUT).unwrap(), 6);
-//     }
-//     // #[test]
-//     // fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_case() {
+        assert_eq!(fix_program(&TEST_INPUT).unwrap(), 8);
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(fix_program(&PUZZLE_INPUT).unwrap(), 1688);
+    }
+}
