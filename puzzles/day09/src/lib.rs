@@ -65,6 +65,29 @@ pub fn find_first_invalid_number(stream: &[i64], preamble: usize) -> Option<i64>
     })
 }
 
+pub fn find_encryption_weakness(stream: &[i64], preamble: usize) -> Option<i64> {
+    let target = find_first_invalid_number(stream, preamble)?;
+
+    let weak_range = (0..stream.len()).map(|i| &stream[i..]).find_map(|slice| {
+        slice
+            .iter()
+            .enumerate()
+            .scan(0, |sum, (i, x)| {
+                *sum += x;
+                if *sum == target {
+                    Some(Some(&slice[..i])) // The range we're looking for
+                } else if *sum > target {
+                    None // Stop iteration
+                } else {
+                    Some(None) // Continue
+                }
+            })
+            .find_map(|x| x)
+    })?;
+
+    Some(weak_range.iter().min()? + weak_range.iter().max()?)
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -86,11 +109,22 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            find_encryption_weakness(TEST_INPUT.as_slice(), 5).unwrap(),
+            62
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            find_encryption_weakness(PUZZLE_INPUT.as_slice(), 25).unwrap(),
+            171265123
+        );
+    }
+}
