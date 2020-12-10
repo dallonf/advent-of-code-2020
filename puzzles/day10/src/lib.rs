@@ -1,5 +1,7 @@
 // Day 00: Template
 
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use shared::prelude::*;
@@ -49,6 +51,58 @@ pub fn get_differences(adapters: &[u16]) -> anyhow::Result<Differences> {
         })
 }
 
+fn hash_slice(slice: &[u16]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    slice.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn get_valid_combinations(adapters: &[u16]) -> u64 {
+    let sorted = {
+        let mut sorted = adapters.to_owned();
+        sorted.sort();
+        sorted
+    };
+
+    let device_adapter = sorted.last().unwrap_or(&0) + 3;
+    let full_collection: Vec<u16> = std::iter::once(0)
+        .chain(sorted.iter().copied())
+        .chain(std::iter::once(device_adapter))
+        .collect();
+
+    fn slice_valid_combinations(slice: &[u16], cache: &mut HashMap<u64, u64>) -> u64 {
+        if slice.len() <= 0 {
+            return 1;
+        }
+        if let Some(result) = cache.get(&hash_slice(slice)) {
+            return *result;
+        }
+
+        let current = slice[0];
+        let max_next = current + 3;
+        
+
+        println!("🥽 {:?}", slice);
+        let valid_next_options = slice
+            .iter()
+            .copied()
+            .enumerate()
+            .skip(1)
+            .inspect(|x| println!("👑 {:?} - {}", x, x.1 <= max_next))
+            .take_while(|(_i, x)| *x <= max_next);
+
+        // println!("🥽 {:?}", valid_next_options.clone().collect::<Vec<_>>());
+
+        // TODO: actually use the cache
+
+        valid_next_options
+            .map(|(i, _)| slice_valid_combinations(&slice[i..], cache))
+            .sum()
+    }
+
+    slice_valid_combinations(&full_collection, &mut HashMap::new())
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -86,11 +140,16 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn small_test_case() {
+        assert_eq!(
+            get_valid_combinations(&vec![16, 10, 15, 5, 1, 11, 7, 19, 6, 12, 4]),
+            8
+        );
+    }
+    // #[test]
+    // fn answer() {}
+}
