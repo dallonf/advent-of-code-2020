@@ -57,7 +57,7 @@ fn hash_slice(slice: &[u16]) -> u64 {
     hasher.finish()
 }
 
-fn get_valid_combinations(adapters: &[u16]) -> u64 {
+pub fn get_valid_combinations(adapters: &[u16]) -> u64 {
     let sorted = {
         let mut sorted = adapters.to_owned();
         sorted.sort();
@@ -71,33 +71,29 @@ fn get_valid_combinations(adapters: &[u16]) -> u64 {
         .collect();
 
     fn slice_valid_combinations(slice: &[u16], cache: &mut HashMap<u64, u64>) -> u64 {
-        if slice.len() <= 0 {
+        if slice.len() <= 1 {
             return 1;
         }
-        if let Some(result) = cache.get(&hash_slice(slice)) {
+        let hash = hash_slice(slice);
+        if let Some(result) = cache.get(&hash) {
             return *result;
         }
 
         let current = slice[0];
         let max_next = current + 3;
-        
 
-        println!("🥽 {:?}", slice);
         let valid_next_options = slice
             .iter()
             .copied()
             .enumerate()
             .skip(1)
-            .inspect(|x| println!("👑 {:?} - {}", x, x.1 <= max_next))
             .take_while(|(_i, x)| *x <= max_next);
 
-        // println!("🥽 {:?}", valid_next_options.clone().collect::<Vec<_>>());
-
-        // TODO: actually use the cache
-
-        valid_next_options
+        let result = valid_next_options
             .map(|(i, _)| slice_valid_combinations(&slice[i..], cache))
-            .sum()
+            .sum();
+        cache.insert(hash, result);
+        result
     }
 
     slice_valid_combinations(&full_collection, &mut HashMap::new())
@@ -150,6 +146,23 @@ mod part_two {
             8
         );
     }
-    // #[test]
-    // fn answer() {}
+
+    #[test]
+    fn large_test_case() {
+        assert_eq!(
+            get_valid_combinations(&vec![
+                28, 33, 18, 42, 31, 14, 46, 20, 48, 47, 24, 23, 49, 45, 19, 38, 39, 11, 1, 32, 25,
+                35, 8, 17, 7, 9, 4, 2, 34, 10, 3
+            ]),
+            19208
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            get_valid_combinations(PUZZLE_INPUT.as_slice()),
+            3_100_448_333_024
+        );
+    }
 }
