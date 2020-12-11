@@ -1,6 +1,6 @@
 // Day 11: Seating System
 
-use std::{borrow::Cow, str::FromStr};
+use std::str::FromStr;
 
 use shared::prelude::*;
 
@@ -19,8 +19,7 @@ pub struct SeatLayout {
 
 lazy_static! {
     static ref TEST_INPUT: SeatLayout = include_str!("test_input.txt").parse().unwrap();
-    // static ref PUZZLE_INPUT: &'static str = include_str!("puzzle_input.txt");
-
+    static ref PUZZLE_INPUT: SeatLayout = include_str!("puzzle_input.txt").parse().unwrap();
 }
 
 impl FromStr for SeatLayout {
@@ -51,15 +50,6 @@ impl FromStr for SeatLayout {
 }
 
 impl SeatLayout {
-    fn from_list(row_len: usize, seats: Cow<Vec<SeatLayout>>) -> SeatLayout {
-        todo!()
-    }
-
-    fn items_iter(&self) -> impl Iterator<Item = (usize, usize, &SeatLayout)> {
-        todo!();
-        vec![].into_iter()
-    }
-
     fn map(&self, f: impl Fn(&(usize, usize), &SeatState) -> SeatState + Copy) -> SeatLayout {
         let new_seats = (0..(self.seats.len() / self.row_len)).flat_map(move |y| {
             (0..self.row_len).map(move |x| {
@@ -75,13 +65,40 @@ impl SeatLayout {
         }
     }
 
-    fn seat_at(&self, coordinate: &(usize, usize)) -> &SeatState {
-        todo!()
+    fn seat_at(&self, (x, y): &(usize, usize)) -> &SeatState {
+        let index = y * self.row_len + x;
+        return &self.seats[index];
     }
 
-    fn adjacent_seats(&self, coordinate: &(usize, usize)) -> impl Iterator<Item = &SeatState> {
-        todo!();
-        vec![].into_iter()
+    fn adjacent_seats(&self, (x, y): &(usize, usize)) -> impl Iterator<Item = &SeatState> {
+        let directions = {
+            let max_x = self.row_len - 1;
+            let max_y = (self.seats.len() / self.row_len) - 1;
+            let x_left = if x <= &0 { None } else { Some(x - 1_usize) };
+            let x_right = if x >= &max_x { None } else { Some(x + 1_usize) };
+            let y_up = if y <= &0 { None } else { Some(y - 1_usize) };
+            let y_down = if y >= &max_y { None } else { Some(y + 1_usize) };
+            let x = Some(*x);
+            let y = Some(*y);
+            vec![
+                (x, y_up),         // up
+                (x_right, y_up),   // up-right
+                (x_right, y),      // right
+                (x_right, y_down), // down-right
+                (x, y_down),       // down
+                (x_left, y_down),  // down-left
+                (x_left, y),       // left
+                (x_left, y_up),    // up-left
+            ]
+        };
+
+        directions.into_iter().filter_map(move |(x, y)| {
+            if let (Some(x), Some(y)) = (x, y) {
+                Some(self.seat_at(&(x, y)))
+            } else {
+                None
+            }
+        })
     }
 
     pub fn iterate(&self) -> SeatLayout {
@@ -131,10 +148,10 @@ mod part_one {
         assert_eq!(TEST_INPUT.iterate_until_stable().occupied(), 37);
     }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        assert_eq!(PUZZLE_INPUT.iterate_until_stable().occupied(), 2489);
+    }
 }
 
 // #[cfg(test)]
