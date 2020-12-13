@@ -5,6 +5,7 @@ use std::str::FromStr;
 use shared::prelude::*;
 
 pub mod part_one;
+pub mod part_two;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Direction {
