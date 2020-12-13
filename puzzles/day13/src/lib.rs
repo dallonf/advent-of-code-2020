@@ -2,13 +2,13 @@
 
 use shared::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ScheduleEntry {
     X,
     Bus(u16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Input {
     timestamp: i64,
     schedule: Vec<ScheduleEntry>,
@@ -26,6 +26,17 @@ lazy_static! {
         Input::parse(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
 }
 
+pub fn parse_bus_schedule(s: &str) -> anyhow::Result<Vec<ScheduleEntry>> {
+    s.split(",")
+        .map(|x| {
+            if x == "x" {
+                return Ok(ScheduleEntry::X);
+            }
+            Ok(ScheduleEntry::Bus(x.parse()?))
+        })
+        .collect::<anyhow::Result<_>>()
+}
+
 impl Input {
     pub fn parse(s: &[&str]) -> anyhow::Result<Input> {
         if s.len() != 2 {
@@ -33,15 +44,7 @@ impl Input {
         }
 
         let timestamp = s[0].parse()?;
-        let schedule = s[1]
-            .split(",")
-            .map(|x| {
-                if x == "x" {
-                    return Ok(ScheduleEntry::X);
-                }
-                Ok(ScheduleEntry::Bus(x.parse()?))
-            })
-            .collect::<anyhow::Result<_>>()?;
+        let schedule = parse_bus_schedule(s[1])?;
 
         Ok(Input {
             timestamp,
@@ -69,6 +72,38 @@ impl Input {
     }
 }
 
+fn all_equal<T: Eq>(arr: &[T]) -> bool {
+    if arr.is_empty() {
+        return true;
+    }
+    let first = &arr[0];
+    arr.iter().all(|item| item == first)
+}
+
+pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
+    let (mut times, buses): (Vec<i64>, Vec<i64>) = input
+        .iter()
+        .enumerate()
+        .filter_map(|(i, x)| match x {
+            ScheduleEntry::Bus(id) => Some((i, id)),
+            ScheduleEntry::X => None,
+        })
+        .map(|(offset, bus_id)| (offset as i64 * -1, *bus_id as i64))
+        .unzip();
+
+    while !all_equal(&times) {
+        let (smallest_index, value) = times
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, &time)| time)
+            .unwrap();
+
+        times[smallest_index] = value + buses[smallest_index];
+    }
+
+    times[0]
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -93,11 +128,41 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn test_case() {
+        assert_eq!(earliest_sequence(&TEST_INPUT.schedule), 1068781);
+    }
+
+    #[test]
+    fn more_test_cases() {
+        assert_eq!(
+            earliest_sequence(&parse_bus_schedule("17,x,13,19").unwrap()),
+            3417
+        );
+        assert_eq!(
+            earliest_sequence(&parse_bus_schedule("67,7,59,61").unwrap()),
+            754018
+        );
+        assert_eq!(
+            earliest_sequence(&parse_bus_schedule("67,x,7,59,61").unwrap()),
+            779210
+        );
+        assert_eq!(
+            earliest_sequence(&parse_bus_schedule("67,7,x,59,61").unwrap()),
+            1261476
+        );
+        assert_eq!(
+            earliest_sequence(&parse_bus_schedule("1789,37,47,1889").unwrap()),
+            1202161486
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(earliest_sequence(&PUZZLE_INPUT.schedule), 0);
+    }
+}
