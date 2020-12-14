@@ -109,7 +109,9 @@ impl Memory {
     }
 }
 
-pub fn run_instructions(instructions: &[Instruction]) -> anyhow::Result<Memory> {
+fn flatten_instructions(
+    instructions: &[Instruction],
+) -> anyhow::Result<Vec<(Bitmask, MemInstruction)>> {
     instructions
         .iter()
         .scan(None, |last_bitmask, instruction| {
@@ -136,18 +138,20 @@ pub fn run_instructions(instructions: &[Instruction]) -> anyhow::Result<Memory> 
                 )
             },
         )
-        .try_fold(
-            Memory::new(),
-            |Memory(mut memory_map), mem_instruction: anyhow::Result<(Bitmask, MemInstruction)>| {
-                mem_instruction.map(|(bitmask, mem_instruction)| {
-                    memory_map.insert(
-                        mem_instruction.address,
-                        bitmask.apply(mem_instruction.value),
-                    );
-                    Memory(memory_map)
-                })
-            },
-        )
+        .collect()
+}
+
+pub fn run_instructions(instructions: &[Instruction]) -> anyhow::Result<Memory> {
+    Ok(flatten_instructions(instructions)?.iter().fold(
+        Memory::new(),
+        |Memory(mut memory_map), (bitmask, mem_instruction)| {
+            memory_map.insert(
+                mem_instruction.address,
+                bitmask.apply(mem_instruction.value),
+            );
+            Memory(memory_map)
+        },
+    ))
 }
 
 #[cfg(test)]
