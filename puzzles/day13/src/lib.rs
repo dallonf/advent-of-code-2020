@@ -117,6 +117,7 @@ pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
             |(prev_sync, prev_frequency), (offset, frequency)| {
                 let cycle_length = std::iter::successors(Some(1_i64), |&x| (Some(x + 1)))
                     .find_map(|i| {
+                        // Find the Least Common Denominator
                         let n = i * prev_frequency;
                         if n % frequency == 0 {
                             Some(n)
@@ -128,9 +129,9 @@ pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
 
                 let sync_point = std::iter::successors(Some(1_i64), |&x| (Some(x + 1)))
                     .find_map(|i| {
-                        let n = prev_sync + i * prev_frequency;
-                        if (n + offset) % frequency == 0 {
-                            Some(n)
+                        let time = prev_sync + i * prev_frequency;
+                        if (time + offset) % frequency == 0 {
+                            Some(time)
                         } else {
                             None
                         }
