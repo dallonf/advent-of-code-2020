@@ -21,6 +21,7 @@ pub enum Instruction {
     SetValue(MemInstruction),
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Memory(HashMap<u64, u64>);
 
 lazy_static! {
@@ -97,6 +98,27 @@ impl Bitmask {
             }
         })
     }
+
+    fn apply_bit_mk2(&self, bit: usize, num: u64) -> Box<dyn Iterator<Item = u64> + '_> {
+        let this_bit = 1_u64 << bit;
+        let mask = self.0[self.0.len() - 1 - bit];
+
+        let numbers: Box<dyn Iterator<Item = u64>> = match mask {
+            Some(true) => Box::from(std::iter::once(num | this_bit)),
+            Some(false) => Box::from(std::iter::once(num)),
+            None => Box::from(vec![num, num ^ this_bit].into_iter()),
+        };
+
+        if bit >= BITS - 1 {
+            numbers
+        } else {
+            Box::from(numbers.flat_map(move |x| self.apply_bit_mk2(bit + 1, x)))
+        }
+    }
+
+    pub fn apply_mk2(&self, original: u64) -> Box<dyn Iterator<Item = u64> + '_> {
+        self.apply_bit_mk2(0, original)
+    }
 }
 
 impl Memory {
@@ -154,6 +176,23 @@ pub fn run_instructions(instructions: &[Instruction]) -> anyhow::Result<Memory> 
     ))
 }
 
+pub fn run_instructions_mk2(instructions: &[Instruction]) -> anyhow::Result<Memory> {
+    let instructions = flatten_instructions(instructions)?;
+
+    let memory = instructions.into_iter().fold(
+        Memory::new(),
+        |Memory(memory_map), (bitmask, mem_instruction)| {
+            let addresses = bitmask.apply_mk2(mem_instruction.address);
+            Memory(addresses.fold(memory_map, |mut memory_map, address| {
+                memory_map.insert(address, mem_instruction.value);
+                memory_map
+            }))
+        },
+    );
+
+    Ok(memory)
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -187,11 +226,55 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn test_basic() {
+        let instructions = vec![
+            Instruction::from_str("mask = 000000000000000000000000000000X1001X").unwrap(),
+            Instruction::from_str("mem[42] = 100").unwrap(),
+        ];
+
+        let memory = run_instructions_mk2(&instructions).unwrap();
+
+        assert_eq!(
+            memory,
+            Memory(
+                vec![(26, 100), (27, 100), (58, 100), (59, 100)]
+                    .into_iter()
+                    .collect()
+            )
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        let instructions: Vec<Instruction> = vec![
+            "mask = 000000000000000000000000000000X1001X",
+            "mem[42] = 100",
+            "mask = 00000000000000000000000000000000X0XX",
+            "mem[26] = 1",
+        ]
+        .into_iter()
+        .map(Instruction::from_str)
+        .collect::<Result<_, _>>()
+        .unwrap();
+
+        assert_eq!(
+            run_instructions_mk2(&instructions).unwrap().sum_values(),
+            208
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            run_instructions_mk2(PUZZLE_INPUT.as_slice())
+                .unwrap()
+                .sum_values(),
+            4173715962894
+        );
+    }
+}
