@@ -80,7 +80,7 @@ fn all_equal<T: Eq>(arr: &[T]) -> bool {
     arr.iter().all(|item| item == first)
 }
 
-pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
+pub fn brute_force_earliest_sequence(input: &[ScheduleEntry]) -> i64 {
     let (mut times, buses): (Vec<i64>, Vec<i64>) = input
         .iter()
         .enumerate()
@@ -102,6 +102,46 @@ pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
     }
 
     times[0]
+}
+
+pub fn earliest_sequence(input: &[ScheduleEntry]) -> i64 {
+    let (sync_point, _) = input
+        .iter()
+        .enumerate()
+        .filter_map(|(offset, entry)| match entry {
+            ScheduleEntry::Bus(id) => Some((offset as i64, *id as i64)),
+            ScheduleEntry::X => None,
+        })
+        .fold(
+            (0_i64, 1_i64),
+            |(prev_sync, prev_frequency), (offset, frequency)| {
+                let cycle_length = std::iter::successors(Some(1_i64), |&x| (Some(x + 1)))
+                    .find_map(|i| {
+                        let n = i * prev_frequency;
+                        if n % frequency == 0 {
+                            Some(n)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+
+                let sync_point = std::iter::successors(Some(1_i64), |&x| (Some(x + 1)))
+                    .find_map(|i| {
+                        let n = prev_sync + i * prev_frequency;
+                        if (n + offset) % frequency == 0 {
+                            Some(n)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+
+                (sync_point, cycle_length)
+            },
+        );
+
+    sync_point
 }
 
 #[cfg(test)]
@@ -131,6 +171,15 @@ mod part_one {
 #[cfg(test)]
 mod part_two {
     use super::*;
+
+    #[test]
+    fn basics() {
+        let seq: Vec<_> = TEST_INPUT.schedule.iter().take(2).copied().collect();
+        assert_eq!(earliest_sequence(&seq), brute_force_earliest_sequence(&seq));
+
+        let seq: Vec<_> = TEST_INPUT.schedule.iter().take(5).copied().collect();
+        assert_eq!(earliest_sequence(&seq), brute_force_earliest_sequence(&seq));
+    }
 
     #[test]
     fn test_case() {
@@ -163,6 +212,6 @@ mod part_two {
 
     #[test]
     fn answer() {
-        assert_eq!(earliest_sequence(&PUZZLE_INPUT.schedule), 0);
+        assert_eq!(earliest_sequence(&PUZZLE_INPUT.schedule), 741745043105674);
     }
 }
