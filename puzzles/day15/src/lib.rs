@@ -10,7 +10,7 @@ lazy_static! {
 
 pub fn result_of_turn(starting: &[u32], final_turn_number: u32) -> u32 {
     let starting_turns = starting.len() - 1;
-    let memory: HashMap<u32, u32> = starting
+    let mut memory: HashMap<u32, u32> = starting
         .iter()
         .copied()
         .take(starting_turns) // we'll play the last starting number directly
@@ -18,22 +18,20 @@ pub fn result_of_turn(starting: &[u32], final_turn_number: u32) -> u32 {
         .map(|(i, x)| (x, i as u32))
         .collect();
 
-    let (final_number, _) = (starting_turns as u32 + 1..final_turn_number).fold(
-        (starting[starting_turns], memory),
-        |(last_number, mut memory), turn_index| {
-            let previous_turn = memory.get(&last_number);
-            let turns_since_repeat = if let Some(previous_turn) = previous_turn {
-                (turn_index - 1) - previous_turn
-            } else {
-                0
-            };
+    let mut prev_number = starting[starting_turns];
+    for turn_index in starting_turns as u32 + 1..final_turn_number {
+        let last_turn_of_prev_number = memory.get(&prev_number);
+        let turns_since_repeat = if let Some(last_turn_of_prev_number) = last_turn_of_prev_number {
+            (turn_index - 1) - last_turn_of_prev_number
+        } else {
+            0
+        };
 
-            memory.insert(last_number, turn_index - 1);
-            (turns_since_repeat, memory)
-        },
-    );
+        memory.insert(prev_number, turn_index - 1);
+        prev_number = turns_since_repeat;
+    }
 
-    final_number
+    prev_number
 }
 
 #[cfg(test)]
@@ -74,6 +72,8 @@ mod part_two {
         assert_eq!(result_of_turn(&vec![0, 3, 6], 30_000_000), 175594);
     }
 
-    // #[test]
-    // fn answer() {}
+    #[test]
+    fn answer() {
+        assert_eq!(result_of_turn(PUZZLE_INPUT.as_slice(), 30_000_000), 1047739);
+    }
 }
