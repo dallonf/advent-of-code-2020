@@ -8,28 +8,28 @@ lazy_static! {
     static ref PUZZLE_INPUT: Vec<u32> = vec![5, 2, 8, 16, 18, 0, 1];
 }
 
-pub fn result_of_turn(starting: &[u32], turn_number: u32) -> u32 {
+pub fn result_of_turn(starting: &[u32], final_turn_number: u32) -> u32 {
     let starting_turns = starting.len() - 1;
     let memory: HashMap<u32, u32> = starting
         .iter()
         .copied()
         .take(starting_turns) // we'll play the last starting number directly
         .enumerate()
-        .map(|(i, x)| (x, starting_turns as u32 - i as u32))
+        .map(|(i, x)| (x, i as u32))
         .collect();
 
-    let (final_number, _) = (starting_turns as u32 + 1..turn_number).fold(
+    let (final_number, _) = (starting_turns as u32 + 1..final_turn_number).fold(
         (starting[starting_turns], memory),
-        |(last_number, mut memory), _| {
-            let turns_since_repeat = *memory.get(&last_number).unwrap_or(&0);
-            memory.insert(last_number, 0); // it has been 0 turns since this number
+        |(last_number, mut memory), turn_index| {
+            let previous_turn = memory.get(&last_number);
+            let turns_since_repeat = if let Some(previous_turn) = previous_turn {
+                (turn_index - 1) - previous_turn
+            } else {
+                0
+            };
 
-            let next_memory = memory
-                .into_iter()
-                .map(|(number, age)| (number, age + 1))
-                .collect();
-
-            (turns_since_repeat, next_memory)
+            memory.insert(last_number, turn_index - 1);
+            (turns_since_repeat, memory)
         },
     );
 
@@ -69,10 +69,10 @@ mod part_one {
 #[cfg(test)]
 mod part_two {
     use super::*;
-    // #[test]
-    // fn test_case() {
-    //     assert_eq!(result_of_turn(&vec![0, 3, 6], 30_000_000), 175594);
-    // }
+    #[test]
+    fn test_case() {
+        assert_eq!(result_of_turn(&vec![0, 3, 6], 30_000_000), 175594);
+    }
 
     // #[test]
     // fn answer() {}
