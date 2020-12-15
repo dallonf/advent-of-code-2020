@@ -51,16 +51,29 @@ mod part_one {
     }
 
     #[test]
+    fn more_test_cases() {
+        assert_eq!(result_of_turn(&vec![1, 3, 2], 2020), 1);
+        assert_eq!(result_of_turn(&vec![2, 1, 3], 2020), 10);
+        assert_eq!(result_of_turn(&vec![1, 2, 3], 2020), 27);
+        assert_eq!(result_of_turn(&vec![2, 3, 1], 2020), 78);
+        assert_eq!(result_of_turn(&vec![3, 2, 1], 2020), 438);
+        assert_eq!(result_of_turn(&vec![3, 1, 2], 2020), 1836);
+    }
+
+    #[test]
     fn answer() {
         assert_eq!(result_of_turn(PUZZLE_INPUT.as_slice(), 2020), 517);
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    // #[test]
+    // fn test_case() {
+    //     assert_eq!(result_of_turn(&vec![0, 3, 6], 30_000_000), 175594);
+    // }
+
+    // #[test]
+    // fn answer() {}
+}
