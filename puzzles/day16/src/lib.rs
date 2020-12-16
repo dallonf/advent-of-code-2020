@@ -195,49 +195,47 @@ impl ProblemNotes {
                 .copied()
                 .collect();
 
-            let iterate_column_possibilities =
-                |i: usize, column_possibilities: &HashSet<&String>| -> ColumnState {
-                    let column_possibilities: HashSet<&String> = column_possibilities
-                        .difference(&all_solved)
-                        .copied()
-                        .collect();
-
-                    let all_other_possibilities: HashSet<&String> = possibilities
-                        .iter()
-                        .enumerate()
-                        .map(|(j, x)| {
-                            if j == i {
-                                return None;
-                            }
-                            if let ColumnState::Possibilities(x) = x {
-                                Some(x)
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten()
-                        .fold(HashSet::new(), |a, b| a.union(b).copied().collect());
-
-                    let unique_column_possibilities: HashSet<&String> = column_possibilities
-                        .difference(&all_other_possibilities)
-                        .copied()
-                        .collect();
-
-                    if unique_column_possibilities.len() == 1 {
-                        ColumnState::Solved(unique_column_possibilities.iter().next().unwrap())
-                    } else {
-                        ColumnState::Possibilities(column_possibilities)
-                    }
-                };
-
             let possibilities_after_solving: Vec<ColumnState> = {
                 possibilities
                     .iter()
                     .enumerate()
                     .map(|(i, x)| match x {
                         ColumnState::Solved(x) => ColumnState::Solved(x),
-                        ColumnState::Possibilities(possibilities) => {
-                            iterate_column_possibilities(i, possibilities)
+                        ColumnState::Possibilities(column_possibilities) => {
+                            let column_possibilities: HashSet<&String> = column_possibilities
+                                .difference(&all_solved)
+                                .copied()
+                                .collect();
+
+                            let all_other_possibilities: HashSet<&String> = possibilities
+                                .iter()
+                                .enumerate()
+                                .map(|(j, x)| {
+                                    if j == i {
+                                        return None;
+                                    }
+                                    if let ColumnState::Possibilities(x) = x {
+                                        Some(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .flatten()
+                                .fold(HashSet::new(), |a, b| a.union(b).copied().collect());
+
+                            let unique_column_possibilities: HashSet<&String> =
+                                column_possibilities
+                                    .difference(&all_other_possibilities)
+                                    .copied()
+                                    .collect();
+
+                            if unique_column_possibilities.len() == 1 {
+                                ColumnState::Solved(
+                                    unique_column_possibilities.iter().next().unwrap(),
+                                )
+                            } else {
+                                ColumnState::Possibilities(column_possibilities)
+                            }
                         }
                     })
                     .collect()
@@ -247,7 +245,7 @@ impl ProblemNotes {
                 panic!("No solutions found! Got stuck on: {:#?}", possibilities);
             }
 
-            todo!()
+            solve_columns(possibilities_after_solving)
         }
 
         solve_columns(
