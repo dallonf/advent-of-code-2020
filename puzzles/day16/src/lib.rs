@@ -16,11 +16,12 @@ pub struct ProblemNotes {
 }
 
 lazy_static! {
-    static ref RULE_REGEX: Regex = Regex::new(r"^([a-z ]+): ([0-9]+)\-([0-9]+) or ([0-9]+)\-([0-9]+)$").unwrap();
-
-    static ref TEST_INPUT: ProblemNotes = ProblemNotes::parse_input(&puzzle_input::lines(include_str!("test_input.txt"))).unwrap();
-    // static ref PUZZLE_INPUT: Vec<&'static str> =
-    //     puzzle_input::lines(include_str!("puzzle_input.txt"));
+    static ref RULE_REGEX: Regex =
+        Regex::new(r"^([a-z ]+): ([0-9]+)\-([0-9]+) or ([0-9]+)\-([0-9]+)$").unwrap();
+    static ref TEST_INPUT: ProblemNotes =
+        ProblemNotes::parse_input(&puzzle_input::lines(include_str!("test_input.txt"))).unwrap();
+    static ref PUZZLE_INPUT: ProblemNotes =
+        ProblemNotes::parse_input(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
 }
 
 impl ProblemNotes {
@@ -46,8 +47,9 @@ impl ProblemNotes {
                 let (low1, high1, low2, high2) =
                     (&captures[2], &captures[3], &captures[4], &captures[5]);
 
-                let range1 = low1.parse().unwrap()..high1.parse().unwrap();
-                let range2 = low2.parse().unwrap()..high2.parse().unwrap();
+                // Note that Rust ranges are exclusive at the top range, but the input ranges are formatted as inclusive
+                let range1 = low1.parse().unwrap()..high1.parse::<u32>().unwrap() + 1;
+                let range2 = low2.parse().unwrap()..high2.parse::<u32>().unwrap() + 1;
 
                 Ok((field_name, vec![range1, range2]))
             })
@@ -87,6 +89,16 @@ impl ProblemNotes {
             nearby_tickets,
         })
     }
+
+    pub fn scanning_error_rate(&self) -> u32 {
+        let all_ranges: Vec<&Range<u32>> = self.rules.values().flatten().collect();
+
+        self.nearby_tickets
+            .iter()
+            .flatten()
+            .filter(|x| !all_ranges.iter().any(|range| range.contains(x)))
+            .sum()
+    }
 }
 
 #[cfg(test)]
@@ -100,15 +112,15 @@ mod part_one {
         assert_eq!(TEST_INPUT.nearby_tickets.len(), 4);
     }
 
-    // #[test]
-    // fn test_cases() {
-    //     assert_eq!(1 + 1, 2);
-    // }
+    #[test]
+    fn test_case() {
+        assert_eq!(TEST_INPUT.scanning_error_rate(), 71);
+    }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        assert_eq!(PUZZLE_INPUT.scanning_error_rate(), 25961);
+    }
 }
 
 // #[cfg(test)]
