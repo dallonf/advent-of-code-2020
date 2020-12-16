@@ -259,7 +259,11 @@ impl ProblemNotes {
 
 impl FieldMapping {
     pub fn translate(&self, ticket: &Ticket) -> HashMap<String, u32> {
-        todo!()
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(i, key)| (key.to_owned(), ticket[i]))
+            .collect()
     }
 }
 
@@ -292,8 +296,6 @@ mod part_two {
     fn test_case() {
         let mapping = TEST_INPUT_2.field_mapping();
 
-        println!("{:?}", mapping);
-
         let mapped_ticket = mapping.translate(&TEST_INPUT_2.your_ticket);
 
         let expected: HashMap<String, u32> = vec![
@@ -306,6 +308,19 @@ mod part_two {
 
         assert_eq!(mapped_ticket, expected);
     }
-    // #[test]
-    // fn answer() {}
+
+    #[test]
+    fn answer() {
+        let mapped_ticket = PUZZLE_INPUT
+            .field_mapping()
+            .translate(&PUZZLE_INPUT.your_ticket);
+
+        let result: u64 = mapped_ticket
+            .iter()
+            .filter(|(key, _)| key.starts_with("departure "))
+            .map(|(_, &value)| u64::from(value))
+            .product();
+
+        assert_eq!(result, 603409823791);
+    }
 }
