@@ -2,9 +2,10 @@
 
 use std::{collections::HashSet, hash::Hash, ops::Add};
 
+use rayon::prelude::*;
 use shared::prelude::*;
 
-pub trait Point: Add + Sized + Copy + Hash + Eq {
+pub trait Point: Add + Sized + Copy + Hash + Eq + Send + Sync {
     fn from_xy_slice(x: usize, y: usize) -> Self;
     fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_>;
 }
@@ -101,9 +102,9 @@ impl<T: Point> ActiveCubes<T> {
         // All active cubes plus all their neighbors
         let search_space: HashSet<T> = self
             .0
-            .iter()
-            .flat_map(|point| point.neighbors())
-            .chain(self.0.iter().copied())
+            .par_iter()
+            .flat_map(|point| point.neighbors().collect::<Vec<_>>())
+            .chain(self.0.par_iter().copied())
             .collect();
 
         let active_neighbors = |point: &T| -> usize {
@@ -114,7 +115,7 @@ impl<T: Point> ActiveCubes<T> {
         };
 
         let next_active: HashSet<T> = search_space
-            .iter()
+            .par_iter()
             .copied()
             .filter(|point| {
                 let is_active = self.0.contains(point);
@@ -201,6 +202,13 @@ mod part_two {
         );
     }
 
-    // #[test]
-    // fn answer() {}
+    #[test]
+    fn answer() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(PUZZLE_INPUT.as_slice())
+                .boot()
+                .count(),
+            1392
+        );
+    }
 }
