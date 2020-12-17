@@ -12,6 +12,9 @@ pub trait Point: Add + Sized + Copy + Hash + Eq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Point3(i32, i32, i32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Point4(i32, i32, i32, i32);
+
 #[derive(Debug, Clone)]
 pub struct ActiveCubes<T: Point>(HashSet<T>);
 
@@ -40,6 +43,37 @@ impl Add for Point3 {
 
     fn add(self, rhs: Self) -> Self::Output {
         Point3(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
+    }
+}
+
+impl Point for Point4 {
+    fn from_xy_slice(x: usize, y: usize) -> Self {
+        Point4(x as i32, y as i32, 0, 0)
+    }
+
+    fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_> {
+        let directions = (-1..2)
+            .flat_map(|x| {
+                (-1..2).flat_map(move |y| {
+                    (-1..2).flat_map(move |z| (-1..2).map(move |w| Point4(x, y, z, w)))
+                })
+            })
+            .filter(|x| x != &Point4(0, 0, 0, 0));
+
+        Box::from(directions.map(move |direction| *self + direction))
+    }
+}
+
+impl Add for Point4 {
+    type Output = Point4;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Point4(
+            self.0 + rhs.0,
+            self.1 + rhs.1,
+            self.2 + rhs.2,
+            self.3 + rhs.3,
+        )
     }
 }
 
@@ -144,11 +178,29 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_one_cycle() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(TEST_INPUT.as_slice())
+                .cycle()
+                .count(),
+            29
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(TEST_INPUT.as_slice())
+                .boot()
+                .count(),
+            848
+        );
+    }
+
+    // #[test]
+    // fn answer() {}
+}
