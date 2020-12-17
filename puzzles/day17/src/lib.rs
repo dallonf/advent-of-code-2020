@@ -1,14 +1,19 @@
 // Day 17: Conway Cubes
 
-use std::{collections::HashSet, ops::Add};
+use std::{collections::HashSet, hash::Hash, ops::Add};
 
 use shared::prelude::*;
 
+pub trait Point: Add + Sized + Copy + Hash + Eq {
+    fn from_xy_slice(x: usize, y: usize) -> Self;
+    fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_>;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Point(i32, i32, i32);
+pub struct Point3(i32, i32, i32);
 
 #[derive(Debug, Clone)]
-pub struct ActiveCubes(HashSet<Point>);
+pub struct ActiveCubes<T: Point>(HashSet<T>);
 
 lazy_static! {
     static ref TEST_INPUT: Vec<&'static str> = vec![".#.", "..#", "###,"];
@@ -16,26 +21,30 @@ lazy_static! {
         puzzle_input::lines(include_str!("puzzle_input.txt"));
 }
 
-impl Point {
-    pub fn neighbors(&self) -> impl Iterator<Item = Point> + '_ {
-        let directions = (-1..2)
-            .flat_map(|x| (-1..2).flat_map(move |y| (-1..2).map(move |z| Point(x, y, z))))
-            .filter(|x| x != &Point(0, 0, 0)); // make sure 0,0 isn't in the list of directions!!
+impl Point for Point3 {
+    fn from_xy_slice(x: usize, y: usize) -> Self {
+        Point3(x as i32, y as i32, 0)
+    }
 
-        directions.map(move |direction| *self + direction)
+    fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_> {
+        let directions = (-1..2)
+            .flat_map(|x| (-1..2).flat_map(move |y| (-1..2).map(move |z| Point3(x, y, z))))
+            .filter(|x| x != &Point3(0, 0, 0)); // make sure 0,0 isn't in the list of directions!!
+
+        Box::from(directions.map(move |direction| *self + direction))
     }
 }
 
-impl Add for Point {
-    type Output = Point;
+impl Add for Point3 {
+    type Output = Point3;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Point(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
+        Point3(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
     }
 }
 
-impl ActiveCubes {
-    pub fn parse(s: &[&str]) -> ActiveCubes {
+impl<T: Point> ActiveCubes<T> {
+    pub fn parse(s: &[&str]) -> ActiveCubes<T> {
         let cubes = s
             .iter()
             .enumerate()
@@ -43,7 +52,7 @@ impl ActiveCubes {
                 row.chars()
                     .enumerate()
                     .filter(|(_, char)| *char == '#')
-                    .map(move |(x, _)| Point(x as i32, y as i32, 0))
+                    .map(move |(x, _)| T::from_xy_slice(x, y))
             })
             .collect();
 
@@ -54,23 +63,23 @@ impl ActiveCubes {
         self.0.len()
     }
 
-    pub fn cycle(&self) -> ActiveCubes {
+    pub fn cycle(&self) -> ActiveCubes<T> {
         // All active cubes plus all their neighbors
-        let search_space: HashSet<Point> = self
+        let search_space: HashSet<T> = self
             .0
             .iter()
             .flat_map(|point| point.neighbors())
             .chain(self.0.iter().copied())
             .collect();
 
-        let active_neighbors = |point: &Point| -> usize {
+        let active_neighbors = |point: &T| -> usize {
             point
                 .neighbors()
                 .filter(|neighbor| self.0.contains(neighbor))
                 .count()
         };
 
-        let next_active: HashSet<Point> = search_space
+        let next_active: HashSet<T> = search_space
             .iter()
             .copied()
             .filter(|point| {
@@ -87,7 +96,7 @@ impl ActiveCubes {
         ActiveCubes(next_active)
     }
 
-    pub fn boot(&self) -> ActiveCubes {
+    pub fn boot(&self) -> Self {
         (0..6).fold(self.clone(), |prev_state, _| prev_state.cycle())
     }
 }
@@ -98,13 +107,18 @@ mod part_one {
 
     #[test]
     fn test_parse() {
-        assert_eq!(ActiveCubes::parse(TEST_INPUT.as_slice()).count(), 5);
+        assert_eq!(
+            ActiveCubes::<Point3>::parse(TEST_INPUT.as_slice()).count(),
+            5
+        );
     }
 
     #[test]
     fn test_one_cycle() {
         assert_eq!(
-            ActiveCubes::parse(TEST_INPUT.as_slice()).cycle().count(),
+            ActiveCubes::<Point3>::parse(TEST_INPUT.as_slice())
+                .cycle()
+                .count(),
             11
         );
     }
@@ -112,7 +126,9 @@ mod part_one {
     #[test]
     fn test_case() {
         assert_eq!(
-            ActiveCubes::parse(TEST_INPUT.as_slice()).boot().count(),
+            ActiveCubes::<Point3>::parse(TEST_INPUT.as_slice())
+                .boot()
+                .count(),
             112
         );
     }
@@ -120,7 +136,9 @@ mod part_one {
     #[test]
     fn answer() {
         assert_eq!(
-            ActiveCubes::parse(PUZZLE_INPUT.as_slice()).boot().count(),
+            ActiveCubes::<Point3>::parse(PUZZLE_INPUT.as_slice())
+                .boot()
+                .count(),
             247
         );
     }
