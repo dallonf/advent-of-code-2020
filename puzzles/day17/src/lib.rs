@@ -2,15 +2,19 @@
 
 use std::{collections::HashSet, hash::Hash, ops::Add};
 
+use rayon::prelude::*;
 use shared::prelude::*;
 
-pub trait Point: Add + Sized + Copy + Hash + Eq {
+pub trait Point: Add + Sized + Copy + Hash + Eq + Send + Sync {
     fn from_xy_slice(x: usize, y: usize) -> Self;
     fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Point3(i32, i32, i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Point4(i32, i32, i32, i32);
 
 #[derive(Debug, Clone)]
 pub struct ActiveCubes<T: Point>(HashSet<T>);
@@ -43,6 +47,37 @@ impl Add for Point3 {
     }
 }
 
+impl Point for Point4 {
+    fn from_xy_slice(x: usize, y: usize) -> Self {
+        Point4(x as i32, y as i32, 0, 0)
+    }
+
+    fn neighbors(&self) -> Box<dyn Iterator<Item = Self> + '_> {
+        let directions = (-1..2)
+            .flat_map(|x| {
+                (-1..2).flat_map(move |y| {
+                    (-1..2).flat_map(move |z| (-1..2).map(move |w| Point4(x, y, z, w)))
+                })
+            })
+            .filter(|x| x != &Point4(0, 0, 0, 0));
+
+        Box::from(directions.map(move |direction| *self + direction))
+    }
+}
+
+impl Add for Point4 {
+    type Output = Point4;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Point4(
+            self.0 + rhs.0,
+            self.1 + rhs.1,
+            self.2 + rhs.2,
+            self.3 + rhs.3,
+        )
+    }
+}
+
 impl<T: Point> ActiveCubes<T> {
     pub fn parse(s: &[&str]) -> ActiveCubes<T> {
         let cubes = s
@@ -67,9 +102,9 @@ impl<T: Point> ActiveCubes<T> {
         // All active cubes plus all their neighbors
         let search_space: HashSet<T> = self
             .0
-            .iter()
-            .flat_map(|point| point.neighbors())
-            .chain(self.0.iter().copied())
+            .par_iter()
+            .flat_map(|point| point.neighbors().collect::<Vec<_>>())
+            .chain(self.0.par_iter().copied())
             .collect();
 
         let active_neighbors = |point: &T| -> usize {
@@ -80,7 +115,7 @@ impl<T: Point> ActiveCubes<T> {
         };
 
         let next_active: HashSet<T> = search_space
-            .iter()
+            .par_iter()
             .copied()
             .filter(|point| {
                 let is_active = self.0.contains(point);
@@ -144,11 +179,36 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_one_cycle() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(TEST_INPUT.as_slice())
+                .cycle()
+                .count(),
+            29
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(TEST_INPUT.as_slice())
+                .boot()
+                .count(),
+            848
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            ActiveCubes::<Point4>::parse(PUZZLE_INPUT.as_slice())
+                .boot()
+                .count(),
+            1392
+        );
+    }
+}
