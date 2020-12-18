@@ -48,8 +48,7 @@ pub fn parse(s: &str) -> anyhow::Result<Vec<Token>> {
             x => x
                 .to_digit(10)
                 .ok_or(anyhow!("Unsupported character"))
-                .and_then(|x| i64::try_from(x).map_err(|e| anyhow::Error::from(e)))
-                .map(|x| Token::Number(x)),
+                .map(|x| Token::Number(i64::from(x))),
         })
         .collect()
 }
