@@ -24,6 +24,8 @@ lazy_static! {
         Input::parse(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
     static ref TEST_INPUT: Input<'static> =
         Input::parse(&puzzle_input::lines(include_str!("test_input.txt"))).unwrap();
+    static ref TEST_INPUT_2: Input<'static> =
+        Input::parse(&puzzle_input::lines(include_str!("test_input_2.txt"))).unwrap();
 }
 
 impl Input<'_> {
@@ -70,6 +72,14 @@ impl Rules {
         Ok(Rules {
             rule_map: rule_map?,
         })
+    }
+
+    pub fn mk2_patch(mut self) -> Rules {
+        self.rule_map.insert(8, "42 | 42 8".parse().unwrap());
+        self.rule_map
+            .insert(11, "42 31 | 42 11 31".parse().unwrap());
+
+        self
     }
 
     pub fn matches(&self, s: &str) -> bool {
@@ -152,31 +162,68 @@ mod part_one {
     #[test]
     fn test_cases() {
         let Input(rules, values) = TEST_INPUT.deref();
-
         let matches: Vec<&str> = values
             .iter()
             .copied()
             .filter(|x| rules.matches(x))
             .collect();
-
         assert_eq!(matches, vec!["ababbb", "abbbab"]);
     }
 
     #[test]
     fn answer() {
         let Input(rules, values) = PUZZLE_INPUT.deref();
-
         let matches = values.iter().copied().filter(|x| rules.matches(x)).count();
-
         assert_eq!(matches, 144);
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn confirm_unpatched_behavior() {
+        let Input(rules, values) = TEST_INPUT_2.deref();
+        let matches: Vec<&str> = values
+            .iter()
+            .copied()
+            .filter(|x| rules.matches(x))
+            .collect();
+        assert_eq!(
+            matches,
+            vec!["bbabbbbaabaabba", "ababaaaaaabaaab", "ababaaaaabbbaba"]
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        let Input(rules, values) = TEST_INPUT_2.deref();
+        let rules = rules.to_owned().mk2_patch();
+        let matches: Vec<&str> = values
+            .iter()
+            .copied()
+            .filter(|x| rules.matches(x))
+            .collect();
+        assert_eq!(
+            matches,
+            vec![
+                "bbabbbbaabaabba",
+                "babbbbaabbbbbabbbbbbaabaaabaaa",
+                "aaabbbbbbaaaabaababaabababbabaaabbababababaaa",
+                "bbbbbbbaaaabbbbaaabbabaaa",
+                "bbbababbbbaaaaaaaabbababaaababaabab",
+                "ababaaaaaabaaab",
+                "ababaaaaabbbaba",
+                "baabbaaaabbaaaababbaababb",
+                "abbbbabbbbaaaababbbbbbaaaababb",
+                "aaaaabbaabaaaaababaa",
+                "aaaabbaabbaaaaaaabbbabbbaaabbaabaaa",
+                "aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba",
+            ]
+        );
+    }
+
+    // #[test]
+    // fn answer() {}
+}
