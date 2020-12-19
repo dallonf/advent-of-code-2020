@@ -18,8 +18,7 @@ pub struct Rules {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rule {
     LiteralChar(char),
-    RuleList(Vec<usize>),
-    Alternatives(Vec<Rule>),
+    RuleLists(Vec<Vec<usize>>),
 }
 
 lazy_static! {
@@ -93,14 +92,35 @@ impl Rules {
         }
     }
 
+    fn matches_rule_list<'a>(&self, s: &'a str, list: &[usize]) -> RuleParseResult<'a> {
+        if list.is_empty() {
+            return RuleParseResult::Matches { leftover: s };
+        }
+        let (next_rule, other_rules) = list.split_first().unwrap();
+        let next_rule = if let Some(x) = self.rule_map.get(next_rule) {
+            if INTERESTING_RULES.contains(next_rule) {
+                println!("rule ID {} = {:?}", next_rule, x);
+            }
+            x
+        } else {
+            return RuleParseResult::DoesNotMatch;
+        };
+
+        if let RuleParseResult::Matches { leftover } = self.matches_rule(s, next_rule) {
+            self.matches_rule_list(leftover, other_rules)
+        } else {
+            RuleParseResult::DoesNotMatch
+        }
+    }
+
     fn matches_rule<'a>(&self, s: &'a str, rule: &Rule) -> RuleParseResult<'a> {
         let is_interesting = INTERESTING_RULES
             .iter()
-            .any(|i| rule == self.rule_map.get(i).unwrap());
+            .any(|i| self.rule_map.get(i).map(|x| x == rule).unwrap_or(false));
         if is_interesting {
             let rule_id = INTERESTING_RULES
                 .iter()
-                .find(|i| rule == self.rule_map.get(i).unwrap())
+                .find(|i| self.rule_map.get(i).map(|x| x == rule).unwrap_or(false))
                 .unwrap();
 
             println!("testing if s:{} matches rule: {}", s, rule_id);
@@ -131,30 +151,10 @@ impl Rules {
                     RuleParseResult::DoesNotMatch
                 }
             }
-            Rule::RuleList(rules) => {
-                if rules.is_empty() {
-                    return RuleParseResult::Matches { leftover: s };
-                }
-                let (next_rule, other_rules) = rules.split_first().unwrap();
-                let next_rule = if let Some(x) = self.rule_map.get(next_rule) {
-                    if INTERESTING_RULES.contains(next_rule) {
-                        println!("rule ID {} = {:?}", next_rule, x);
-                    }
-                    x
-                } else {
-                    return RuleParseResult::DoesNotMatch;
-                };
-
-                if let RuleParseResult::Matches { leftover } = self.matches_rule(s, next_rule) {
-                    let virtual_rule_list = Rule::RuleList(other_rules.to_vec());
-                    self.matches_rule(leftover, &virtual_rule_list)
-                } else {
-                    RuleParseResult::DoesNotMatch
-                }
-            }
-            Rule::Alternatives(alternatives) => {
-                let matched = alternatives.iter().enumerate().find_map(|(i, rule)| {
-                    if let RuleParseResult::Matches { leftover } = self.matches_rule(s, rule) {
+            Rule::RuleLists(alternatives) => {
+                let matched = alternatives.iter().enumerate().find_map(|(i, rules)| {
+                    if let RuleParseResult::Matches { leftover } = self.matches_rule_list(s, rules)
+                    {
                         Some((i, leftover))
                     } else {
                         None
@@ -164,62 +164,48 @@ impl Rules {
                 match matched {
                     Some((index_matched, leftover)) => {
                         // Special case: can we consume more of this leftover by exploring one of the other alternatives?
+                        let matched_list = &alternatives[index_matched];
 
-                        // First check: the matched rule needs to be a RuleList
-                        let matched_list = if let Rule::RuleList(x) = &alternatives[index_matched] {
-                            Some(x)
-                        } else {
-                            None
-                        };
+                        let remaining_alteratives: Vec<Vec<usize>> = alternatives
+                            .iter()
+                            .enumerate()
+                            .filter_map(
+                                |(i, rule)| {
+                                    if i != index_matched {
+                                        Some(rule)
+                                    } else {
+                                        None
+                                    }
+                                },
+                            )
+                            .filter_map(move |rule_list| {
+                                // the alternative would need to begin with the same items as matched_list
+                                if rule_list.starts_with(&matched_list) {
+                                    // Create a virtual rule that represents the remaining slice of this alternative
+                                    let new_rule_list = rule_list[matched_list.len()..].to_vec();
+                                    Some(new_rule_list)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
 
-                        let remaining_alteratives: Option<Vec<Rule>> =
-                            matched_list.map(|matched_list| {
-                                alternatives
-                                    .iter()
-                                    .enumerate()
-                                    .filter_map(
-                                        |(i, rule)| {
-                                            if i != index_matched {
-                                                Some(rule)
-                                            } else {
-                                                None
-                                            }
-                                        },
-                                    )
-                                    .filter_map(move |rule| {
-                                        // the alternative would need to be a RuleList that begins with the same items as matched_list
-                                        if let Rule::RuleList(rule_list) = rule {
-                                            if rule_list.starts_with(&matched_list) {
-                                                // Create a virtual rule that represents the remaining slice of this alternative
-                                                let new_rule_list = Rule::RuleList(
-                                                    rule_list[matched_list.len()..].to_vec(),
-                                                );
-                                                Some(new_rule_list)
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect()
-                            });
-
-                        let extra_leftover_used = remaining_alteratives.and_then(|x| {
-                            if x.len() == 0 {
-                                return None;
-                            }
-
-                            let virtual_alternative_rule = Rule::Alternatives(x);
-
-                            if let RuleParseResult::Matches { leftover } =
-                                self.matches_rule(leftover, &virtual_alternative_rule)
-                            {
-                                Some(leftover)
-                            } else {
+                        let extra_leftover_used = {
+                            if remaining_alteratives.len() == 0 {
                                 None
+                            } else {
+                                let virtual_alternative_rule =
+                                    Rule::RuleLists(remaining_alteratives);
+
+                                if let RuleParseResult::Matches { leftover } =
+                                    self.matches_rule(leftover, &virtual_alternative_rule)
+                                {
+                                    Some(leftover)
+                                } else {
+                                    None
+                                }
                             }
-                        });
+                        };
 
                         RuleParseResult::Matches {
                             leftover: extra_leftover_used.unwrap_or(leftover),
@@ -240,15 +226,21 @@ impl FromStr for Rule {
             Ok(Rule::LiteralChar(
                 literal_char_captures[1].chars().nth(0).unwrap(),
             ))
-        } else if s.contains(" | ") {
-            let options: anyhow::Result<Vec<Rule>> = s.split(" | ").map(|x| x.parse()).collect();
-            Ok(Rule::Alternatives(options?))
+        // } else if s.contains(" | ") {
+        //     let options: anyhow::Result<Vec<Rule>> = s.split(" | ").map(|x| x.parse()).collect();
+        //     Ok(Rule::Alternatives(options?))
         } else {
-            let ids: Result<Vec<usize>, _> = s
-                .split(" ")
-                .map(|x| x.parse().map_err(|e| anyhow::Error::from(e)))
+            let rule_lists: Result<Vec<Vec<usize>>, _> = s
+                .split(" | ")
+                .map(|alternative| {
+                    alternative
+                        .split(" ")
+                        .map(|x| x.parse().map_err(|e| anyhow::Error::from(e)))
+                        .collect()
+                })
                 .collect();
-            Ok(Rule::RuleList(ids?))
+
+            Ok(Rule::RuleLists(rule_lists?))
         }
     }
 }
