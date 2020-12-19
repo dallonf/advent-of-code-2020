@@ -1,6 +1,6 @@
 // Day 19: Monster Messages
 
-use std::{collections::HashMap, str::FromStr, todo};
+use std::{collections::HashMap, str::FromStr};
 
 use shared::prelude::*;
 
@@ -41,8 +41,14 @@ impl Input<'_> {
 }
 
 lazy_static! {
-    static ref RULE_REGEX: Regex = Regex::new(r"^([0-9]): (.+)$").unwrap();
+    static ref RULE_REGEX: Regex = Regex::new(r"^([0-9]+): (.+)$").unwrap();
     static ref LITERAL_CHAR_REGEX: Regex = Regex::new(r#"^"([a-z])"$"#).unwrap();
+}
+
+#[derive(Debug)]
+enum RuleParseResult<'a> {
+    Matches { leftover: &'a str },
+    DoesNotMatch,
 }
 
 impl Rules {
@@ -61,11 +67,60 @@ impl Rules {
             })
             .collect();
 
-        Ok(Rules { rule_map: rule_map? })
+        Ok(Rules {
+            rule_map: rule_map?,
+        })
     }
 
     pub fn matches(&self, s: &str) -> bool {
-        todo!()
+        match self.matches_rule(s, self.rule_map.get(&0).unwrap()) {
+            RuleParseResult::Matches { leftover } => leftover.is_empty(),
+            RuleParseResult::DoesNotMatch => false,
+        }
+    }
+
+    fn matches_rule<'a>(&self, s: &'a str, rule: &Rule) -> RuleParseResult<'a> {
+        match rule {
+            Rule::LiteralChar(char) => {
+                if let Some(leftover) = s.strip_prefix(*char) {
+                    RuleParseResult::Matches { leftover }
+                } else {
+                    RuleParseResult::DoesNotMatch
+                }
+            }
+            Rule::RuleList(rules) => {
+                if rules.is_empty() {
+                    return RuleParseResult::Matches { leftover: s };
+                }
+                let (next_rule, other_rules) = rules.split_first().unwrap();
+                let next_rule = if let Some(x) = self.rule_map.get(next_rule) {
+                    x
+                } else {
+                    return RuleParseResult::DoesNotMatch;
+                };
+
+                if let RuleParseResult::Matches { leftover } = self.matches_rule(s, next_rule) {
+                    let virtual_rule_list = Rule::RuleList(other_rules.to_vec());
+                    self.matches_rule(leftover, &virtual_rule_list)
+                } else {
+                    RuleParseResult::DoesNotMatch
+                }
+            }
+            Rule::Alternatives(alternatives) => {
+                let match_leftover = alternatives.iter().find_map(|rule| {
+                    if let RuleParseResult::Matches { leftover } = self.matches_rule(s, rule) {
+                        Some(leftover)
+                    } else {
+                        None
+                    }
+                });
+
+                match match_leftover {
+                    Some(leftover) => RuleParseResult::Matches { leftover },
+                    None => RuleParseResult::DoesNotMatch,
+                }
+            }
+        }
     }
 }
 
@@ -97,7 +152,6 @@ mod part_one {
     #[test]
     fn test_cases() {
         let Input(rules, values) = TEST_INPUT.deref();
-        println!("{:#?}", rules);
 
         let matches: Vec<&str> = values
             .iter()
@@ -108,10 +162,14 @@ mod part_one {
         assert_eq!(matches, vec!["ababbb", "abbbab"]);
     }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        let Input(rules, values) = PUZZLE_INPUT.deref();
+
+        let matches = values.iter().copied().filter(|x| rules.matches(x)).count();
+
+        assert_eq!(matches, 144);
+    }
 }
 
 // #[cfg(test)]
