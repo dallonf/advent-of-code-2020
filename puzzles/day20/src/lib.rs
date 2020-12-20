@@ -1,6 +1,6 @@
 // Day 20: Jurassic Jigsaw
 
-use std::{collections::HashSet, convert::TryFrom, convert::TryInto, iter};
+use std::{collections::HashSet, iter};
 
 use rayon::prelude::*;
 use shared::prelude::*;
@@ -54,12 +54,13 @@ impl Tile {
 
         let size = section.len() - 1;
 
-        if !section.iter().all(|line| line.len() == size) {
+        if !section.iter().skip(1).all(|line| line.len() == size) {
             return Err(anyhow!("Tile isn't square"));
         }
 
         let data = section
             .iter()
+            .skip(1)
             .flat_map(|line| line.chars().map(|char| char == '#'))
             .collect();
 
@@ -277,18 +278,37 @@ pub fn get_corner_ids(tiles: &[Tile]) -> anyhow::Result<HashSet<u64>> {
 mod part_one {
     use super::*;
 
+    fn edge_to_string(edge: &[bool]) -> String {
+        edge.iter()
+            .map(|x| if *x { "#" } else { "." })
+            .collect::<Vec<_>>()
+            .concat()
+    }
+
     #[test]
-    fn test_cases() {
+    fn test_edges() {
+        let test_tile = TEST_INPUT.iter().find(|x| x.tile_id == 2311).unwrap();
+        let placement = TilePlacement(test_tile.clone(), Transformation::default());
+
+        assert_eq!(edge_to_string(&placement.top_edge()), "..##.#..#.");
+        assert_eq!(edge_to_string(&placement.bottom_edge()), "..###..###");
+        assert_eq!(edge_to_string(&placement.left_edge()), ".#####..#.");
+        assert_eq!(edge_to_string(&placement.right_edge()), "...#.##..#");
+    }
+
+    #[test]
+    fn test_case() {
         let result = get_corner_ids(TEST_INPUT.as_slice()).unwrap();
 
         assert_eq!(result, vec![1951, 3079, 2971, 1171].into_iter().collect());
         assert_eq!(result.iter().product::<u64>(), 20899048083289);
     }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        let result = get_corner_ids(PUZZLE_INPUT.as_slice()).unwrap();
+        assert_eq!(result.iter().product::<u64>(), 0);
+    }
 }
 
 // #[cfg(test)]
