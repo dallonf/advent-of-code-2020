@@ -1,8 +1,12 @@
 // Day 20: Jurassic Jigsaw
 
-use std::{collections::HashSet, iter};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    iter,
+};
 
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use shared::prelude::*;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -26,8 +30,18 @@ pub struct Image {
     grid: Vec<Option<TilePlacement>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct TilePlacement(Tile, Transformation);
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum Direction {
+    Up,
+    Right,
+    Left,
+    Down,
+}
+
+type EdgeMap = HashMap<Vec<bool>, Vec<(TilePlacement, Direction)>>;
 
 lazy_static! {
     static ref TILE_REGEX: Regex = Regex::new(r"^Tile ([0-9]+):$").unwrap();
@@ -73,9 +87,9 @@ impl Tile {
 }
 
 impl Transformation {
-    pub fn all() -> impl ParallelIterator<Item = Transformation> {
-        let booleans = || vec![true, false].into_par_iter();
-        (0..4_u8).into_par_iter().flat_map(move |rotation| {
+    pub fn all() -> impl Iterator<Item = Transformation> {
+        let booleans = || vec![true, false].into_iter();
+        (0..4_u8).into_iter().flat_map(move |rotation| {
             booleans().flat_map(move |flip_x| {
                 booleans().map(move |flip_y| Transformation {
                     rotation,
@@ -88,6 +102,34 @@ impl Transformation {
 }
 
 impl Image {
+    fn all_edges(tiles: &[Tile]) -> EdgeMap {
+        tiles
+    .iter()
+    .flat_map(|tile| {
+        Transformation::all().flat_map(move |transform| {
+            let placement = TilePlacement(tile.clone(), transform);
+            Direction::all().map(move |direction| {
+                let edge = placement.edge(direction);
+                (edge, placement.clone(), direction)
+            })
+        })
+    })
+    .fold(
+        HashMap::new(),
+        |mut result: EdgeMap,
+         (edge, placement, direction): (Vec<bool>, TilePlacement, Direction)| {
+            if !result.contains_key(&edge) {
+                result.insert(edge.clone(), vec![]);
+            }
+
+            let vec = result.get_mut(&edge).unwrap();
+            vec.push((placement, direction));
+
+            result
+        },
+    )
+    }
+
     fn new(tiles: &[Tile]) -> anyhow::Result<Image> {
         let size = (tiles.len() as f64).sqrt().floor();
         if size.fract() > 0.001 {
@@ -102,7 +144,7 @@ impl Image {
         })
     }
 
-    fn fill(&self) -> Vec<Image> {
+    fn fill(&self, edges_map: &EdgeMap) -> Vec<Image> {
         let first_unfilled_tile = self.grid.iter().enumerate().find_map(|(i, placement)| {
             if let None = placement {
                 Some(i)
@@ -119,33 +161,99 @@ impl Image {
 
         let (x, y) = self.index_to_coord(first_unfilled_tile);
 
-        let possibilities = self
-            .remaining_tiles
-            .par_iter()
-            .enumerate()
-            .flat_map(|(i, tile)| {
-                Transformation::all()
-                    .map(move |transformation| (i, TilePlacement(tile.to_owned(), transformation)))
-            });
+        let matches = self.matches_for(edges_map, x, y);
 
-        let verified_possibilities =
-            possibilities.filter(|(_, placement)| self.placement_would_fit(placement, x, y));
-
-        let next_images = verified_possibilities.map(|(i, placement)| Image {
+        let next_images = matches.into_iter().map(|placement| Image {
             size: self.size,
             grid: {
                 let mut x = self.grid.clone();
-                x[first_unfilled_tile] = Some(placement);
+                x[first_unfilled_tile] = Some(placement.clone());
                 x
             },
             remaining_tiles: {
-                let mut x = self.remaining_tiles.clone();
-                x.remove(i);
+                let x = self
+                    .remaining_tiles
+                    .iter()
+                    .filter(|&tile| tile != &placement.0)
+                    .cloned()
+                    .collect();
                 x
             },
         });
 
-        next_images.flat_map(|image| image.fill()).collect()
+        next_images
+            .flat_map(|image| image.fill(edges_map))
+            .collect()
+    }
+
+    fn matches_for(&self, edges_map: &EdgeMap, x: usize, y: usize) -> Vec<TilePlacement> {
+        let edge_above = if y != 0 {
+            self.tile_at(x, y - 1).map(|tile| tile.bottom_edge())
+        } else {
+            None
+        };
+        let edge_to_left = if x != 0 {
+            self.tile_at(x - 1, y).map(|tile| tile.right_edge())
+        } else {
+            None
+        };
+
+        println!("edge_to_left {:?}", edge_to_left);
+
+        let possible_matches_above: Option<HashSet<&TilePlacement>> =
+            edge_above.and_then(|edge_above| {
+                edges_map.get(&edge_above).map(|results| {
+                    results
+                        .iter()
+                        .filter_map(|(placement, direction)| {
+                            if *direction == Direction::Up {
+                                Some(placement)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                })
+            });
+
+        let possible_matches_to_left: Option<HashSet<&TilePlacement>> =
+            edge_to_left.and_then(|edge_to_left| {
+                edges_map.get(&edge_to_left).map(|results| {
+                    results
+                        .iter()
+                        .filter_map(|(placement, direction)| {
+                            if *direction == Direction::Left {
+                                Some(placement)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                })
+            });
+
+        let possible_matches: Vec<TilePlacement> =
+            match (possible_matches_above, possible_matches_to_left) {
+                (None, None) => self
+                    .remaining_tiles
+                    .iter()
+                    .flat_map(|tile| {
+                        Transformation::all().map(move |transformation| {
+                            TilePlacement(tile.to_owned(), transformation)
+                        })
+                    })
+                    .collect(),
+                (None, Some(set)) | (Some(set), None) => set.into_iter().cloned().collect(),
+                (Some(up_set), Some(left_set)) => {
+                    up_set.intersection(&left_set).map(|&x| x.clone()).collect()
+                }
+            };
+
+        // Should only consider the tiles still in our library to place
+        possible_matches
+            .into_iter()
+            .filter(|TilePlacement(tile, _)| self.remaining_tiles.contains(tile))
+            .collect()
     }
 
     fn tile_at(&self, x: usize, y: usize) -> Option<&TilePlacement> {
@@ -159,46 +267,6 @@ impl Image {
         }
 
         (&self.grid[index]).into()
-    }
-
-    fn placement_would_fit(&self, placement: &TilePlacement, x: usize, y: usize) -> bool {
-        let would_fit_left = {
-            if x == 0 {
-                true
-            } else {
-                let left_tile = self.tile_at(x - 1, y);
-                left_tile
-                    .map(|left_tile| left_tile.right_edge() == placement.left_edge())
-                    .unwrap_or(true)
-            }
-        };
-
-        let would_fit_right = {
-            let right_tile = self.tile_at(x + 1, y);
-            right_tile
-                .map(|right_tile| right_tile.left_edge() == placement.right_edge())
-                .unwrap_or(true)
-        };
-
-        let would_fit_up = {
-            if y == 0 {
-                true
-            } else {
-                let up_tile = self.tile_at(x, y - 1);
-                up_tile
-                    .map(|up_tile| up_tile.bottom_edge() == placement.top_edge())
-                    .unwrap_or(true)
-            }
-        };
-
-        let would_fit_down = {
-            let down_tile = self.tile_at(x, y + 1);
-            down_tile
-                .map(|down_tile| down_tile.top_edge() == placement.bottom_edge())
-                .unwrap_or(true)
-        };
-
-        would_fit_left && would_fit_right && would_fit_up && would_fit_down
     }
 
     fn index_to_coord(&self, index: usize) -> (usize, usize) {
@@ -229,6 +297,15 @@ impl TilePlacement {
         (0..size).map(|x| self.pixel_at(x, size - 1)).collect()
     }
 
+    fn edge(&self, direction: Direction) -> Vec<bool> {
+        match direction {
+            Direction::Up => self.top_edge(),
+            Direction::Right => self.right_edge(),
+            Direction::Left => self.left_edge(),
+            Direction::Down => self.bottom_edge(),
+        }
+    }
+
     fn pixel_at(&self, mut x: usize, mut y: usize) -> bool {
         let size = self.0.size;
         let transformation = self.1;
@@ -249,12 +326,49 @@ impl TilePlacement {
 
         self.0.data[index]
     }
+
+    pub fn display_tile(&self) -> String {
+        (0..self.0.size)
+            .map(|y| {
+                (0..self.0.size)
+                    .map(|x| if self.pixel_at(x, y) { "#" } else { "." })
+                    .collect::<Vec<&str>>()
+                    .concat()
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
+}
+
+impl Debug for TilePlacement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TilePlacement")
+            .field("tile_id", &self.0.tile_id)
+            .field("transformation", &self.1)
+            .finish()
+            .and_then(|()| write!(f, "\n{}\n", self.display_tile()))
+    }
+}
+
+impl Direction {
+    pub fn all() -> impl Iterator<Item = Direction> {
+        vec![
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ]
+        .into_iter()
+    }
 }
 
 pub fn get_corner_ids(tiles: &[Tile]) -> anyhow::Result<HashSet<u64>> {
     let image = Image::new(tiles)?;
 
-    let final_image = image.fill().into_iter().find(|_| true);
+    let final_image = image
+        .fill(&Image::all_edges(tiles))
+        .into_iter()
+        .find(|_| true);
 
     final_image
         .ok_or(anyhow!("Solution not found"))
@@ -297,6 +411,38 @@ mod part_one {
     }
 
     #[test]
+    fn test_selection() {
+        let edge_map = Image::all_edges(TEST_INPUT.as_slice());
+        let mut test_image = Image::new(TEST_INPUT.as_slice()).unwrap();
+
+        let test_tile = TEST_INPUT
+            .iter()
+            .find(|x| x.tile_id == 1951)
+            .unwrap()
+            .clone();
+
+        test_image.grid[0] = Some(TilePlacement(
+            test_tile.clone(),
+            Transformation {
+                flip_y: true,
+                ..Default::default()
+            },
+        ));
+
+        test_image.remaining_tiles = test_image
+            .remaining_tiles
+            .into_iter()
+            .filter(|tile| tile != &test_tile)
+            .collect();
+
+        let matches = test_image.matches_for(&edge_map, 1, 0);
+
+        assert!(matches.iter().any(|x| {
+            x.0.tile_id == 2311 && x.1.flip_x == false && x.1.flip_y == true && x.1.rotation == 0
+        }));
+    }
+
+    #[test]
     fn test_case() {
         let result = get_corner_ids(TEST_INPUT.as_slice()).unwrap();
 
@@ -304,11 +450,11 @@ mod part_one {
         assert_eq!(result.iter().product::<u64>(), 20899048083289);
     }
 
-    #[test]
-    fn answer() {
-        let result = get_corner_ids(PUZZLE_INPUT.as_slice()).unwrap();
-        assert_eq!(result.iter().product::<u64>(), 0);
-    }
+    // #[test]
+    // fn answer() {
+    //     let result = get_corner_ids(PUZZLE_INPUT.as_slice()).unwrap();
+    //     assert_eq!(result.iter().product::<u64>(), 0);
+    // }
 }
 
 // #[cfg(test)]
