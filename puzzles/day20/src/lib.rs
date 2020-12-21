@@ -20,7 +20,7 @@ pub struct Tile {
 pub struct Transformation {
     flip_x: bool,
     flip_y: bool,
-    rotation: u8, // 0-3
+    rotated: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -89,10 +89,10 @@ impl Tile {
 impl Transformation {
     pub fn all() -> impl Iterator<Item = Transformation> {
         let booleans = || vec![true, false].into_iter();
-        (0..4_u8).into_iter().flat_map(move |rotation| {
+        booleans().flat_map(move |rotated| {
             booleans().flat_map(move |flip_x| {
                 booleans().map(move |flip_y| Transformation {
-                    rotation,
+                    rotated,
                     flip_x,
                     flip_y,
                 })
@@ -197,8 +197,6 @@ impl Image {
         } else {
             None
         };
-
-        println!("edge_to_left {:?}", edge_to_left);
 
         let possible_matches_above: Option<HashSet<&TilePlacement>> =
             edge_above.and_then(|edge_above| {
@@ -315,15 +313,13 @@ impl TilePlacement {
         if transformation.flip_y {
             y = (size - 1) - y;
         }
-
-        for _ in 0..transformation.rotation {
+        if transformation.rotated {
             let (new_x, new_y) = ((size - 1) - y, x);
             x = new_x;
             y = new_y;
         }
 
         let index = y * size + x;
-
         self.0.data[index]
     }
 
@@ -437,8 +433,9 @@ mod part_one {
 
         let matches = test_image.matches_for(&edge_map, 1, 0);
 
+        assert_eq!(matches.len(), 1);
         assert!(matches.iter().any(|x| {
-            x.0.tile_id == 2311 && x.1.flip_x == false && x.1.flip_y == true && x.1.rotation == 0
+            x.0.tile_id == 2311 && x.1.flip_x == false && x.1.flip_y == true && x.1.rotated == false
         }));
     }
 
@@ -450,11 +447,11 @@ mod part_one {
         assert_eq!(result.iter().product::<u64>(), 20899048083289);
     }
 
-    // #[test]
-    // fn answer() {
-    //     let result = get_corner_ids(PUZZLE_INPUT.as_slice()).unwrap();
-    //     assert_eq!(result.iter().product::<u64>(), 0);
-    // }
+    #[test]
+    fn answer() {
+        let result = get_corner_ids(PUZZLE_INPUT.as_slice()).unwrap();
+        assert_eq!(result.iter().product::<u64>(), 54755174472007);
+    }
 }
 
 // #[cfg(test)]
