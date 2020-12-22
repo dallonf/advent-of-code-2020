@@ -43,7 +43,7 @@ impl FoodLabel<'_> {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Solution<'a> {
     allergens_for_ingredients_map: HashMap<&'a str, Option<&'a str>>,
 }
@@ -155,6 +155,7 @@ impl Solution<'_> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SafeIngredients<'a> {
     pub ingredients: HashSet<&'a str>,
     pub count: usize,
@@ -182,6 +183,25 @@ impl SafeIngredients<'_> {
             count,
         })
     }
+}
+
+pub fn canonical_dangerous_ingredient_list(labels: &[FoodLabel]) -> anyhow::Result<String> {
+    let solution = Solution::solve(labels)?;
+    let mut dangerous_ingredients: Vec<(&str, &str)> = solution
+        .allergens_for_ingredients_map
+        .iter()
+        .filter_map(|(&ingredient, &allergen)| match allergen {
+            Some(allergen) => Some((ingredient, allergen)),
+            None => None,
+        })
+        .collect();
+    dangerous_ingredients.sort_by_key(|(_, allergen)| *allergen);
+
+    Ok(dangerous_ingredients
+        .into_iter()
+        .map(|(ingredient, _)| ingredient)
+        .collect::<Vec<&str>>()
+        .join(","))
 }
 
 #[cfg(test)]
@@ -212,11 +232,21 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            canonical_dangerous_ingredient_list(TEST_INPUT.as_slice()).unwrap(),
+            "mxmxvkd,sqjhc,fvjkl".to_string()
+        );
+    }
+    #[test]
+    fn answer() {
+        assert_eq!(
+            canonical_dangerous_ingredient_list(PUZZLE_INPUT.as_slice()).unwrap(),
+            "fdsfpg,jmvxx,lkv,cbzcgvc,kfgln,pqqks,pqrvc,lclnj".to_string()
+        );
+    }
+}
