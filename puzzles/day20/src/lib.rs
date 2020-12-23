@@ -24,7 +24,7 @@ pub struct Transformation {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Image {
+struct ImageSolvingData {
     size: usize,
     remaining_tiles: Vec<Tile>,
     grid: Vec<Option<TilePlacement>>,
@@ -41,6 +41,12 @@ pub enum Direction {
     Down,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Image {
+    size: usize,
+    data: Vec<bool>,
+}
+
 type EdgeMap = HashMap<Vec<bool>, Vec<(TilePlacement, Direction)>>;
 
 lazy_static! {
@@ -49,6 +55,18 @@ lazy_static! {
         parse_input(&puzzle_input::lines(include_str!("test_input.txt"))).unwrap();
     static ref PUZZLE_INPUT: Vec<Tile> =
         parse_input(&puzzle_input::lines(include_str!("puzzle_input.txt"))).unwrap();
+    static ref TEST_IMAGE: Image =
+        Image::parse(&puzzle_input::lines(include_str!("test_image.txt"))).unwrap();
+    static ref SEA_MONSTER: Vec<(usize, usize)> = include_str!("sea_monster.txt")
+        .lines()
+        .enumerate()
+        .flat_map(|(y, line)| line
+            .chars()
+            .enumerate()
+            .filter_map(move |(x, char)| if char == '#' { Some((x, y)) } else { None }))
+        .collect();
+    static ref SEA_MONSTER_LENGTH: usize = SEA_MONSTER.iter().map(|(x, _)| x + 1).max().unwrap();
+    static ref SEA_MONSTER_HEIGHT: usize = SEA_MONSTER.iter().map(|(_, y)| y + 1).max().unwrap();
 }
 
 pub fn parse_input(input: &[&str]) -> anyhow::Result<Vec<Tile>> {
@@ -101,7 +119,7 @@ impl Transformation {
     }
 }
 
-impl Image {
+impl ImageSolvingData {
     fn all_edges(tiles: &[Tile]) -> EdgeMap {
         tiles
     .iter()
@@ -130,21 +148,21 @@ impl Image {
     )
     }
 
-    fn new(tiles: &[Tile]) -> anyhow::Result<Image> {
+    fn new(tiles: &[Tile]) -> anyhow::Result<ImageSolvingData> {
         let size = (tiles.len() as f64).sqrt().floor();
         if size.fract() > 0.001 {
             return Err(anyhow!("Tiles do not fit into a square"));
         }
         let size = size as usize;
 
-        Ok(Image {
+        Ok(ImageSolvingData {
             size,
             grid: iter::repeat(None).take(tiles.len()).collect(),
             remaining_tiles: tiles.to_vec(),
         })
     }
 
-    fn fill(&self, edges_map: &EdgeMap) -> Vec<Image> {
+    fn fill(&self, edges_map: &EdgeMap) -> Vec<ImageSolvingData> {
         let first_unfilled_tile = self.grid.iter().enumerate().find_map(|(i, placement)| {
             if let None = placement {
                 Some(i)
@@ -163,7 +181,7 @@ impl Image {
 
         let matches = self.matches_for(edges_map, x, y);
 
-        let next_images = matches.into_iter().map(|placement| Image {
+        let next_images = matches.into_iter().map(|placement| ImageSolvingData {
             size: self.size,
             grid: {
                 let mut x = self.grid.clone();
@@ -272,6 +290,42 @@ impl Image {
         let y = index / self.size;
         (x, y)
     }
+
+    fn image(&self) -> Image {
+        let tile_size = self.grid[0].as_ref().unwrap().0.size;
+        let all_pixels: Vec<bool> = (0..self.size * tile_size)
+            .flat_map(|y| {
+                (0..self.size * tile_size).map(move |x| {
+                    let grid_x = x / tile_size;
+                    let grid_y = y / tile_size;
+                    let tile_x = x % tile_size;
+                    let tile_y = y % tile_size;
+                    // trim out the edges of each tile
+                    if tile_x == 0
+                        || tile_x == tile_size - 1
+                        || tile_y == 0
+                        || tile_y == tile_size - 1
+                    {
+                        None
+                    } else {
+                        Some(
+                            self.tile_at(grid_x, grid_y)
+                                .unwrap()
+                                .pixel_at(tile_x, tile_y),
+                        )
+                    }
+                })
+            })
+            .filter_map(|x| x)
+            .collect();
+
+        let image_size = self.size * (tile_size - 2);
+
+        Image {
+            data: all_pixels,
+            size: image_size,
+        }
+    }
 }
 
 impl TilePlacement {
@@ -358,11 +412,109 @@ impl Direction {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct WaterRoughness {
+    monsters_found: usize,
+    roughness_rating: usize,
+}
+
+impl Image {
+    pub fn parse(input: &[&str]) -> anyhow::Result<Self> {
+        let size = input.len();
+
+        if !input.iter().all(|line| line.len() == size) {
+            return Err(anyhow!("Image isn't square"));
+        }
+
+        let data = input
+            .iter()
+            .flat_map(|line| line.chars().map(|char| char == '#'))
+            .collect();
+
+        Ok(Image { data, size })
+    }
+
+    fn find_sea_monsters(&self) -> Vec<(usize, usize)> {
+        (0..self.size - *SEA_MONSTER_LENGTH)
+            .flat_map(|x| {
+                (0..self.size - *SEA_MONSTER_HEIGHT).filter_map(move |y| {
+                    if self.sea_monster_at(x, y) {
+                        Some((x, y))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
+    }
+
+    pub fn count_sea_monsters(&self) -> usize {
+        self.find_sea_monsters().len()
+    }
+
+    fn sea_monster_at(&self, x: usize, y: usize) -> bool {
+        SEA_MONSTER.iter().all(|&(monster_x, monster_y)| {
+            let pixel = self.pixel_at(x + monster_x, y + monster_y);
+            pixel
+        })
+    }
+
+    fn index_to_coord(&self, index: usize) -> (usize, usize) {
+        let x = index % self.size;
+        let y = index / self.size;
+        (x, y)
+    }
+
+    pub fn pixel_at(&self, x: usize, y: usize) -> bool {
+        let index = y * self.size + x;
+        self.data[index]
+    }
+
+    pub fn display(&self) -> String {
+        (0..self.size)
+            .map(|y| {
+                (0..self.size)
+                    .map(|x| if self.pixel_at(x, y) { "#" } else { "." })
+                    .collect::<Vec<&str>>()
+                    .concat()
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
+
+    pub fn roughness(&self) -> WaterRoughness {
+        let monsters = self.find_sea_monsters();
+        let monster_parts: HashSet<(usize, usize)> = monsters
+            .iter()
+            .flat_map(|&(x, y)| {
+                SEA_MONSTER
+                    .iter()
+                    .map(move |&(monster_x, monster_y)| (x + monster_x, y + monster_y))
+            })
+            .collect();
+
+        let roughness = self
+            .data
+            .iter()
+            .enumerate()
+            .filter(|&(i, &pixel)| {
+                let (x, y) = self.index_to_coord(i);
+                pixel && !monster_parts.contains(&(x, y))
+            })
+            .count();
+
+        WaterRoughness {
+            monsters_found: monsters.len(),
+            roughness_rating: roughness,
+        }
+    }
+}
+
 pub fn get_corner_ids(tiles: &[Tile]) -> anyhow::Result<HashSet<u64>> {
-    let image = Image::new(tiles)?;
+    let image = ImageSolvingData::new(tiles)?;
 
     let final_image = image
-        .fill(&Image::all_edges(tiles))
+        .fill(&ImageSolvingData::all_edges(tiles))
         .into_iter()
         .find(|_| true);
 
@@ -382,6 +534,25 @@ pub fn get_corner_ids(tiles: &[Tile]) -> anyhow::Result<HashSet<u64>> {
             })
             .collect()
         })
+}
+
+pub fn get_images(tiles: &[Tile]) -> anyhow::Result<Vec<Image>> {
+    let solver = ImageSolvingData::new(tiles)?;
+
+    Ok(solver
+        .fill(&ImageSolvingData::all_edges(tiles))
+        .into_iter()
+        .map(|solver| solver.image())
+        .collect())
+}
+
+pub fn get_roughness(tiles: &[Tile]) -> anyhow::Result<usize> {
+    Ok(get_images(tiles)?
+        .into_iter()
+        .map(|img| img.roughness())
+        .max_by_key(|&WaterRoughness { monsters_found, .. }| monsters_found)
+        .ok_or(anyhow!("Couldn't find any monsters"))?
+        .roughness_rating)
 }
 
 #[cfg(test)]
@@ -408,8 +579,8 @@ mod part_one {
 
     #[test]
     fn test_selection() {
-        let edge_map = Image::all_edges(TEST_INPUT.as_slice());
-        let mut test_image = Image::new(TEST_INPUT.as_slice()).unwrap();
+        let edge_map = ImageSolvingData::all_edges(TEST_INPUT.as_slice());
+        let mut test_image = ImageSolvingData::new(TEST_INPUT.as_slice()).unwrap();
 
         let test_tile = TEST_INPUT
             .iter()
@@ -454,11 +625,66 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn test_sea_monster_parse() {
+        let in_sea_monster: HashSet<(usize, usize)> = SEA_MONSTER.iter().copied().collect();
+        let reconstituted_sea_monster = (0..*SEA_MONSTER_HEIGHT)
+            .map(|y| {
+                (0..*SEA_MONSTER_LENGTH)
+                    .map(|x| {
+                        if in_sea_monster.contains(&(x, y)) {
+                            "#"
+                        } else {
+                            " "
+                        }
+                    })
+                    .collect::<Vec<&str>>()
+                    .concat()
+            })
+            .collect::<Vec<String>>();
+
+        assert_eq!(
+            reconstituted_sea_monster,
+            include_str!("sea_monster.txt")
+                .lines()
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+        );
+    }
+
+    #[test]
+    fn test_image() {
+        get_images(TEST_INPUT.as_slice()).unwrap();
+    }
+
+    #[test]
+    fn test_sea_monster_count() {
+        assert!(TEST_IMAGE.sea_monster_at(2, 2));
+        assert_eq!(TEST_IMAGE.count_sea_monsters(), 2);
+    }
+
+    #[test]
+    fn test_roughness() {
+        assert_eq!(
+            TEST_IMAGE.roughness(),
+            WaterRoughness {
+                monsters_found: 2,
+                roughness_rating: 273,
+            }
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        assert_eq!(get_roughness(TEST_INPUT.as_slice()).unwrap(), 273);
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(get_roughness(PUZZLE_INPUT.as_slice()).unwrap(), 1692);
+    }
+}
