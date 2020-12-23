@@ -1,6 +1,6 @@
 // Day 23: Crab Cups
 
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use shared::prelude::*;
 
@@ -12,7 +12,7 @@ pub struct CrabGame {
     highest_label: u32,
     lowest_label: u32,
     pub current_cup: u32,
-    next_cup_map: HashMap<u32, u32>,
+    next_cup_map: Vec<u32>,
 }
 
 impl FromStr for CrabGame {
@@ -24,6 +24,12 @@ impl FromStr for CrabGame {
             .map(|char| char.to_string().parse())
             .collect::<Result<_, _>>()?;
 
+        CrabGame::from_list(&numbers)
+    }
+}
+
+impl CrabGame {
+    pub fn from_list(numbers: &[u32]) -> anyhow::Result<Self> {
         if numbers.len() <= 4 {
             return Err(anyhow!("Sequence requires at least 4 numbers"));
         }
@@ -32,14 +38,13 @@ impl FromStr for CrabGame {
         let highest_label = *numbers.iter().max().unwrap();
         let lowest_label = *numbers.iter().min().unwrap();
 
-        let next_cup_map = numbers
-            .windows(2)
-            .map(|window| (window[0], window[1]))
-            .chain(std::iter::once((
-                *numbers.last().unwrap(),
-                *numbers.first().unwrap(),
-            )))
-            .collect();
+        // This actually leaves a 0 at the beginning of the list, but that's fine
+        // less costly than subtracting every index by 1 on access
+        let mut next_cup_map: Vec<u32> = std::iter::repeat(0).take(numbers.len() + 1).collect();
+        for window in numbers.windows(2) {
+            next_cup_map[window[0] as usize] = window[1];
+        }
+        next_cup_map[*numbers.last().unwrap() as usize] = *numbers.first().unwrap();
 
         Ok(CrabGame {
             current_cup,
@@ -48,23 +53,29 @@ impl FromStr for CrabGame {
             next_cup_map,
         })
     }
-}
 
-impl CrabGame {
+    pub fn from_list_expanded(numbers: &[u32]) -> anyhow::Result<Self> {
+        let mut numbers = numbers.to_vec();
+        numbers.extend(numbers.len() as u32 + 1..1_000_001);
+        Self::from_list(&numbers)
+    }
+
+    pub fn from_str_expanded(s: &str) -> anyhow::Result<Self> {
+        let numbers: Vec<u32> = s
+            .chars()
+            .map(|char| char.to_string().parse())
+            .collect::<Result<_, _>>()?;
+
+        Self::from_list_expanded(&numbers)
+    }
+
     pub fn perform_move(mut self) -> CrabGame {
-        let picked_up_cups: Vec<u32> = CrabGameIterator {
-            game: &self,
-            current: self.next_cup(self.current_cup).unwrap(),
-            halt_at: None,
-        }
-        .take(3)
-        .collect();
+        let pickup_first = self.next_cup(self.current_cup).unwrap();
+        let pickup_middle = self.next_cup(pickup_first).unwrap();
+        let pickup_last = self.next_cup(pickup_middle).unwrap();
 
         // remove picked up cups from circle
-        self.next_cup_map.insert(
-            self.current_cup,
-            self.next_cup(*picked_up_cups.last().unwrap()).unwrap(),
-        );
+        self.next_cup_map[self.current_cup as usize] = self.next_cup(pickup_last).unwrap();
 
         let destination = {
             let mut destination = self.current_cup;
@@ -75,7 +86,10 @@ impl CrabGame {
                     destination = self.highest_label
                 }
 
-                if !picked_up_cups.contains(&destination) {
+                if destination != pickup_first
+                    && destination != pickup_middle
+                    && destination != pickup_last
+                {
                     break;
                 }
             }
@@ -85,10 +99,8 @@ impl CrabGame {
 
         // insert after destination
         let after_destination = self.next_cup(destination).unwrap();
-        self.next_cup_map
-            .insert(destination, *picked_up_cups.first().unwrap());
-        self.next_cup_map
-            .insert(*picked_up_cups.last().unwrap(), after_destination);
+        self.next_cup_map[destination as usize] = pickup_first;
+        self.next_cup_map[pickup_last as usize] = after_destination;
 
         self.current_cup = self.next_cup(self.current_cup).unwrap();
 
@@ -115,24 +127,20 @@ impl CrabGame {
     }
 
     pub fn next_cup(&self, cup: u32) -> Option<u32> {
-        self.next_cup_map.get(&cup).copied()
+        self.next_cup_map.get(cup as usize).copied()
     }
 
     pub fn prev_cup(&self, cup: u32) -> Option<u32> {
         self.next_cup_map
             .iter()
-            .find_map(|(&prev, &current)| if current == cup { Some(prev) } else { None })
-    }
-
-    pub fn expand(mut self) -> Self {
-        let mut prev_label = self.prev_cup(self.current_cup).unwrap();
-        for additional_label in self.highest_label + 1..1_000_001 {
-            self.next_cup_map.insert(prev_label, additional_label);
-            prev_label = additional_label;
-        }
-        self.next_cup_map.insert(1_000_000, self.current_cup);
-        self.highest_label = 1_000_000;
-        self
+            .enumerate()
+            .find_map(|(prev, &current)| {
+                if current == cup {
+                    Some(prev as u32)
+                } else {
+                    None
+                }
+            })
     }
 
     pub fn output_mk2(&self) -> u64 {
@@ -205,15 +213,14 @@ mod part_two {
 
     #[test]
     fn test_expand() {
-        let game = CrabGame::from_str(TEST_INPUT).unwrap().expand();
-        assert_eq!(game.next_cup_map.len(), 1_000_000);
+        let game = CrabGame::from_str_expanded(TEST_INPUT).unwrap();
         assert_eq!(game.cups_after_1().collect::<HashSet<u32>>().len(), 999_999);
         assert_eq!(game.highest_label, 1_000_000);
     }
 
     #[test]
     fn test_case() {
-        let game = CrabGame::from_str(TEST_INPUT).unwrap().expand();
+        let game = CrabGame::from_str_expanded(TEST_INPUT).unwrap();
         let game = game.perform_moves(10_000_000);
         assert_eq!(
             game.cups_after_1().take(2).collect::<Vec<u32>>(),
@@ -224,7 +231,7 @@ mod part_two {
 
     #[test]
     fn answer() {
-        let game = CrabGame::from_str(PUZZLE_INPUT).unwrap().expand();
+        let game = CrabGame::from_str_expanded(PUZZLE_INPUT).unwrap();
         let game = game.perform_moves(10_000_000);
         assert_eq!(game.output_mk2(), 8456532414);
     }
