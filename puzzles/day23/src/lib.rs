@@ -131,6 +131,7 @@ impl CrabGame {
             prev_label = additional_label;
         }
         self.next_cup_map.insert(1_000_000, self.current_cup);
+        self.highest_label = 1_000_000;
         self
     }
 
@@ -207,6 +208,7 @@ mod part_two {
         let game = CrabGame::from_str(TEST_INPUT).unwrap().expand();
         assert_eq!(game.next_cup_map.len(), 1_000_000);
         assert_eq!(game.cups_after_1().collect::<HashSet<u32>>().len(), 999_999);
+        assert_eq!(game.highest_label, 1_000_000);
     }
 
     #[test]
@@ -220,6 +222,10 @@ mod part_two {
         assert_eq!(game.output_mk2(), 149245887792);
     }
 
-    // #[test]
-    // fn answer() {}
+    #[test]
+    fn answer() {
+        let game = CrabGame::from_str(PUZZLE_INPUT).unwrap().expand();
+        let game = game.perform_moves(10_000_000);
+        assert_eq!(game.output_mk2(), 8456532414);
+    }
 }
