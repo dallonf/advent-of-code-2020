@@ -4,22 +4,22 @@ use std::{collections::HashMap, str::FromStr};
 
 use shared::prelude::*;
 
-const TEST_INPUT: &str = "389125467";
-const PUZZLE_INPUT: &str = "463528179";
+pub const TEST_INPUT: &str = "389125467";
+pub const PUZZLE_INPUT: &str = "463528179";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrabGame {
-    highest_label: u8,
-    lowest_label: u8,
-    pub current_cup: u8,
-    next_cup_map: HashMap<u8, u8>,
+    highest_label: u32,
+    lowest_label: u32,
+    pub current_cup: u32,
+    next_cup_map: HashMap<u32, u32>,
 }
 
 impl FromStr for CrabGame {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let numbers: Vec<u8> = s
+        let numbers: Vec<u32> = s
             .chars()
             .map(|char| char.to_string().parse())
             .collect::<Result<_, _>>()?;
@@ -52,7 +52,7 @@ impl FromStr for CrabGame {
 
 impl CrabGame {
     pub fn perform_move(mut self) -> CrabGame {
-        let picked_up_cups: Vec<u8> = CrabGameIterator {
+        let picked_up_cups: Vec<u32> = CrabGameIterator {
             game: &self,
             current: self.next_cup(self.current_cup).unwrap(),
             halt_at: None,
@@ -114,19 +114,39 @@ impl CrabGame {
             .join("")
     }
 
-    pub fn next_cup(&self, cup: u8) -> Option<u8> {
+    pub fn next_cup(&self, cup: u32) -> Option<u32> {
         self.next_cup_map.get(&cup).copied()
+    }
+
+    pub fn prev_cup(&self, cup: u32) -> Option<u32> {
+        self.next_cup_map
+            .iter()
+            .find_map(|(&prev, &current)| if current == cup { Some(prev) } else { None })
+    }
+
+    pub fn expand(mut self) -> Self {
+        let mut prev_label = self.prev_cup(self.current_cup).unwrap();
+        for additional_label in self.highest_label + 1..1_000_001 {
+            self.next_cup_map.insert(prev_label, additional_label);
+            prev_label = additional_label;
+        }
+        self.next_cup_map.insert(1_000_000, self.current_cup);
+        self
+    }
+
+    pub fn output_mk2(&self) -> u64 {
+        self.cups_after_1().take(2).map(|i| i as u64).product()
     }
 }
 
 pub struct CrabGameIterator<'a> {
     game: &'a CrabGame,
-    current: u8,
-    halt_at: Option<u8>,
+    current: u32,
+    halt_at: Option<u32>,
 }
 
 impl Iterator for CrabGameIterator<'_> {
-    type Item = u8;
+    type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.halt_at == Some(self.current) {
@@ -176,11 +196,30 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    #[test]
+    fn test_expand() {
+        let game = CrabGame::from_str(TEST_INPUT).unwrap().expand();
+        assert_eq!(game.next_cup_map.len(), 1_000_000);
+        assert_eq!(game.cups_after_1().collect::<HashSet<u32>>().len(), 999_999);
+    }
+
+    #[test]
+    fn test_case() {
+        let game = CrabGame::from_str(TEST_INPUT).unwrap().expand();
+        let game = game.perform_moves(10_000_000);
+        assert_eq!(
+            game.cups_after_1().take(2).collect::<Vec<u32>>(),
+            vec![934001, 159792]
+        );
+        assert_eq!(game.output_mk2(), 149245887792);
+    }
+
+    // #[test]
+    // fn answer() {}
+}
