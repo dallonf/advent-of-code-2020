@@ -1,7 +1,8 @@
 // Day 24: Lobby Layout
 
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
+use rayon::prelude::*;
 use shared::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -24,6 +25,19 @@ lazy_static! {
     static ref TEST_INPUT: Vec<&'static str> = puzzle_input::lines(include_str!("test_input.txt"));
     static ref PUZZLE_INPUT: Vec<&'static str> =
         puzzle_input::lines(include_str!("puzzle_input.txt"));
+}
+
+impl Direction {
+    pub fn all() -> Vec<Self> {
+        vec![
+            Direction::E,
+            Direction::SE,
+            Direction::SW,
+            Direction::W,
+            Direction::NE,
+            Direction::NW,
+        ]
+    }
 }
 
 impl Tile {
@@ -68,6 +82,12 @@ impl Tile {
 
         Tile(x + dx, y + dy, z + dz)
     }
+
+    pub fn all_neighbors(&self) -> impl Iterator<Item = Tile> + '_ {
+        Direction::all()
+            .into_iter()
+            .map(move |direction| self.neighbor(direction))
+    }
 }
 
 impl TilePattern {
@@ -90,6 +110,41 @@ impl TilePattern {
 
     pub fn count_black_tiles(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn update(&self) -> Self {
+        let tiles_to_consider: HashSet<Tile> = self
+            .0
+            .iter()
+            .flat_map(|x| x.all_neighbors().chain(std::iter::once(*x)))
+            .collect();
+
+        let tiles: HashSet<Tile> = tiles_to_consider
+            .into_par_iter()
+            .filter(|tile| {
+                let is_black = self.0.contains(&tile);
+                let black_neighbors = tile
+                    .all_neighbors()
+                    .filter(|neighbor| self.0.contains(neighbor))
+                    .count();
+                if is_black {
+                    !(black_neighbors == 0 || black_neighbors > 2)
+                } else {
+                    black_neighbors == 2
+                }
+            })
+            .collect();
+
+        TilePattern(tiles)
+    }
+
+    pub fn update_for_days(&self, days: usize) -> Self {
+        (0..days)
+            .into_iter()
+            .fold(Cow::Borrowed(self), |pattern, _| {
+                Cow::Owned(pattern.update())
+            })
+            .into_owned()
     }
 }
 
@@ -121,11 +176,39 @@ mod part_one {
     }
 }
 
-// #[cfg(test)]
-// mod part_two {
-//     use super::*;
-//     #[test]
-//     fn test_cases() {}
-//     #[test]
-//     fn answer() {}
-// }
+#[cfg(test)]
+mod part_two {
+    use super::*;
+
+    #[test]
+    fn test_updates() {
+        let floor = TilePattern::from_instructions(TEST_INPUT.as_slice()).unwrap();
+        let floor = floor.update();
+        assert_eq!(floor.count_black_tiles(), 15);
+        let floor = floor.update();
+        assert_eq!(floor.count_black_tiles(), 12);
+        let floor = floor.update();
+        assert_eq!(floor.count_black_tiles(), 25);
+    }
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            TilePattern::from_instructions(TEST_INPUT.as_slice())
+                .unwrap()
+                .update_for_days(100)
+                .count_black_tiles(),
+            2208
+        );
+    }
+
+    #[test]
+    fn answer() {
+        assert_eq!(
+            TilePattern::from_instructions(PUZZLE_INPUT.as_slice())
+                .unwrap()
+                .update_for_days(100)
+                .count_black_tiles(),
+            4012
+        );
+    }
+}
