@@ -17,6 +17,9 @@ pub enum Direction {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tile(i64, i64, i64);
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct TilePattern(HashSet<Tile>);
+
 lazy_static! {
     static ref TEST_INPUT: Vec<&'static str> = puzzle_input::lines(include_str!("test_input.txt"));
     static ref PUZZLE_INPUT: Vec<&'static str> =
@@ -67,21 +70,31 @@ impl Tile {
     }
 }
 
-pub fn flip_tiles(instructions: &[&str]) -> anyhow::Result<usize> {
-    let tiles: anyhow::Result<HashSet<Tile>> =
-        instructions
-            .iter()
-            .try_fold(HashSet::new(), |mut tiles, &instruction| {
-                let tile = Tile::from_directions_str(instruction)?;
-                if tiles.contains(&tile) {
-                    tiles.remove(&tile);
-                } else {
-                    tiles.insert(tile);
-                }
-                Ok(tiles)
-            });
+impl TilePattern {
+    pub fn from_instructions(instructions: &[&str]) -> anyhow::Result<Self> {
+        let tiles: anyhow::Result<HashSet<Tile>> =
+            instructions
+                .iter()
+                .try_fold(HashSet::new(), |mut tiles, &instruction| {
+                    let tile = Tile::from_directions_str(instruction)?;
+                    if tiles.contains(&tile) {
+                        tiles.remove(&tile);
+                    } else {
+                        tiles.insert(tile);
+                    }
+                    Ok(tiles)
+                });
 
-    Ok(tiles?.len())
+        Ok(TilePattern(tiles?))
+    }
+
+    pub fn count_black_tiles(&self) -> usize {
+        self.0.len()
+    }
+}
+
+pub fn part_one(instructions: &[&str]) -> anyhow::Result<usize> {
+    Ok(TilePattern::from_instructions(instructions)?.count_black_tiles())
 }
 
 #[cfg(test)]
@@ -99,12 +112,12 @@ mod part_one {
 
     #[test]
     fn test_case() {
-        assert_eq!(flip_tiles(TEST_INPUT.as_slice()).unwrap(), 10);
+        assert_eq!(part_one(TEST_INPUT.as_slice()).unwrap(), 10);
     }
 
     #[test]
     fn answer() {
-        assert_eq!(flip_tiles(PUZZLE_INPUT.as_slice()).unwrap(), 495);
+        assert_eq!(part_one(PUZZLE_INPUT.as_slice()).unwrap(), 495);
     }
 }
 
