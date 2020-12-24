@@ -1,6 +1,7 @@
 // Day 20: Jurassic Jigsaw
 
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::Debug,
     iter,
@@ -24,10 +25,17 @@ pub struct Transformation {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct ImageSolvingData {
+struct ImageSolvingData<'a> {
     size: usize,
     remaining_tiles: Vec<Tile>,
     grid: Vec<Option<TilePlacement>>,
+    edges_map: Cow<'a, EdgeMap>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct ImageSolution {
+    size: usize,
+    grid: Vec<TilePlacement>,
 }
 
 #[derive(PartialEq, Eq, Clone, Hash)]
@@ -119,7 +127,7 @@ impl Transformation {
     }
 }
 
-impl ImageSolvingData {
+impl ImageSolvingData<'_> {
     fn all_edges(tiles: &[Tile]) -> EdgeMap {
         tiles
     .iter()
@@ -155,14 +163,17 @@ impl ImageSolvingData {
         }
         let size = size as usize;
 
+        let edges_map = ImageSolvingData::all_edges(tiles);
+
         Ok(ImageSolvingData {
             size,
             grid: iter::repeat(None).take(tiles.len()).collect(),
             remaining_tiles: tiles.to_vec(),
+            edges_map: Cow::Owned(edges_map),
         })
     }
 
-    fn fill(&self, edges_map: &EdgeMap) -> Vec<ImageSolvingData> {
+    fn fill(&self) -> Vec<ImageSolution> {
         let first_unfilled_tile = self.grid.iter().enumerate().find_map(|(i, placement)| {
             if let None = placement {
                 Some(i)
@@ -174,12 +185,12 @@ impl ImageSolvingData {
         let first_unfilled_tile = if let Some(x) = first_unfilled_tile {
             x
         } else {
-            return vec![self.clone()];
+            return vec![self.solution().unwrap()];
         };
 
         let (x, y) = self.index_to_coord(first_unfilled_tile);
 
-        let matches = self.matches_for(edges_map, x, y);
+        let matches = self.matches_for(x, y);
 
         let next_images = matches.into_iter().map(|placement| ImageSolvingData {
             size: self.size,
@@ -197,14 +208,31 @@ impl ImageSolvingData {
                     .collect();
                 x
             },
+            edges_map: match &self.edges_map {
+                Cow::Borrowed(x) => Cow::Borrowed(x),
+                Cow::Owned(x) => Cow::Borrowed(x),
+            },
         });
 
-        next_images
-            .flat_map(|image| image.fill(edges_map))
-            .collect()
+        next_images.flat_map(|image| image.fill()).collect()
     }
 
-    fn matches_for(&self, edges_map: &EdgeMap, x: usize, y: usize) -> Vec<TilePlacement> {
+    fn solution(&self) -> Option<ImageSolution> {
+        if self.grid.iter().all(|x| x.is_some()) {
+            Some(ImageSolution {
+                size: self.size,
+                grid: self
+                    .grid
+                    .iter()
+                    .map(|x| x.as_ref().unwrap().clone())
+                    .collect(),
+            })
+        } else {
+            None
+        }
+    }
+
+    fn matches_for(&self, x: usize, y: usize) -> Vec<TilePlacement> {
         let edge_above = if y != 0 {
             self.tile_at(x, y - 1).map(|tile| tile.bottom_edge())
         } else {
@@ -218,7 +246,7 @@ impl ImageSolvingData {
 
         let possible_matches_above: Option<HashSet<&TilePlacement>> =
             edge_above.and_then(|edge_above| {
-                edges_map.get(&edge_above).map(|results| {
+                self.edges_map.get(&edge_above).map(|results| {
                     results
                         .iter()
                         .filter_map(|(placement, direction)| {
@@ -234,7 +262,7 @@ impl ImageSolvingData {
 
         let possible_matches_to_left: Option<HashSet<&TilePlacement>> =
             edge_to_left.and_then(|edge_to_left| {
-                edges_map.get(&edge_to_left).map(|results| {
+                self.edges_map.get(&edge_to_left).map(|results| {
                     results
                         .iter()
                         .filter_map(|(placement, direction)| {
@@ -290,9 +318,24 @@ impl ImageSolvingData {
         let y = index / self.size;
         (x, y)
     }
+}
+
+impl ImageSolution {
+    fn tile_at(&self, x: usize, y: usize) -> Option<&TilePlacement> {
+        if x > self.size {
+            return None;
+        }
+
+        let index = y * self.size + x;
+        if index >= self.grid.len() {
+            return None;
+        }
+
+        self.grid.get(index)
+    }
 
     fn image(&self) -> Image {
-        let tile_size = self.grid[0].as_ref().unwrap().0.size;
+        let tile_size = self.grid[0].0.size;
         let all_pixels: Vec<bool> = (0..self.size * tile_size)
             .flat_map(|y| {
                 (0..self.size * tile_size).map(move |x| {
@@ -513,10 +556,7 @@ impl Image {
 pub fn get_corner_ids(tiles: &[Tile]) -> anyhow::Result<HashSet<u64>> {
     let image = ImageSolvingData::new(tiles)?;
 
-    let final_image = image
-        .fill(&ImageSolvingData::all_edges(tiles))
-        .into_iter()
-        .find(|_| true);
+    let final_image = image.fill().into_iter().find(|_| true);
 
     final_image
         .ok_or(anyhow!("Solution not found"))
@@ -540,7 +580,7 @@ pub fn get_images(tiles: &[Tile]) -> anyhow::Result<Vec<Image>> {
     let solver = ImageSolvingData::new(tiles)?;
 
     Ok(solver
-        .fill(&ImageSolvingData::all_edges(tiles))
+        .fill()
         .into_iter()
         .map(|solver| solver.image())
         .collect())
@@ -579,7 +619,6 @@ mod part_one {
 
     #[test]
     fn test_selection() {
-        let edge_map = ImageSolvingData::all_edges(TEST_INPUT.as_slice());
         let mut test_image = ImageSolvingData::new(TEST_INPUT.as_slice()).unwrap();
 
         let test_tile = TEST_INPUT
@@ -602,7 +641,7 @@ mod part_one {
             .filter(|tile| tile != &test_tile)
             .collect();
 
-        let matches = test_image.matches_for(&edge_map, 1, 0);
+        let matches = test_image.matches_for(1, 0);
 
         assert_eq!(matches.len(), 1);
         assert!(matches.iter().any(|x| {
