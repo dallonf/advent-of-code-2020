@@ -2,7 +2,7 @@
 
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     fmt::Debug,
     iter,
 };
@@ -129,8 +129,8 @@ impl Transformation {
 
 fn all_edges(tiles: &[Tile]) -> EdgeMap {
     tiles
-        .iter()
-        .flat_map(|tile| {
+        .par_iter()
+        .flat_map_iter(|tile| {
             Transformation::all().flat_map(move |transform| {
                 let placement = TilePlacement(tile, transform);
                 Direction::all().map(move |direction| {
@@ -139,18 +139,23 @@ fn all_edges(tiles: &[Tile]) -> EdgeMap {
                 })
             })
         })
-        .fold(
-            HashMap::new(),
-            |mut result: EdgeMap,
-             (edge, placement, direction): (Vec<bool>, TilePlacement, Direction)| {
-                if !result.contains_key(&edge) {
-                    result.insert(edge.clone(), vec![]);
+        .map(|(edge, placement, direction)| {
+            std::iter::once((edge.clone(), vec![(placement, direction)])).collect::<EdgeMap>()
+        })
+        .reduce(
+            || HashMap::new(),
+            |mut a: EdgeMap, b: EdgeMap| {
+                for (k, mut v) in b.into_iter() {
+                    match a.entry(k) {
+                        Entry::Occupied(mut entry) => {
+                            entry.get_mut().append(&mut v);
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(v);
+                        }
+                    };
                 }
-
-                let vec = result.get_mut(&edge).unwrap();
-                vec.push((placement, direction));
-
-                result
+                a
             },
         )
 }
