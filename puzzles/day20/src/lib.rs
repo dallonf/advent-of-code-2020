@@ -7,7 +7,7 @@ use std::{
     iter,
 };
 
-// use rayon::prelude::*;
+use rayon::prelude::*;
 use shared::prelude::*;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -192,7 +192,7 @@ impl<'a, 'b> ImageSolvingData<'a, 'b> {
 
         let matches = self.matches_for(x, y);
 
-        let next_images = matches.into_iter().map(|placement| ImageSolvingData {
+        let next_images = matches.into_par_iter().map(|placement| ImageSolvingData {
             size: self.size,
             grid: {
                 let mut x = self.grid.clone();
@@ -475,14 +475,17 @@ impl Image {
 
     fn find_sea_monsters(&self) -> Vec<(usize, usize)> {
         (0..self.size - *SEA_MONSTER_LENGTH)
+            .into_par_iter()
             .flat_map(|x| {
-                (0..self.size - *SEA_MONSTER_HEIGHT).filter_map(move |y| {
-                    if self.sea_monster_at(x, y) {
-                        Some((x, y))
-                    } else {
-                        None
-                    }
-                })
+                (0..self.size - *SEA_MONSTER_HEIGHT)
+                    .into_par_iter()
+                    .filter_map(move |y| {
+                        if self.sea_monster_at(x, y) {
+                            Some((x, y))
+                        } else {
+                            None
+                        }
+                    })
             })
             .collect()
     }
