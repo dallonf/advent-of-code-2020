@@ -24,22 +24,22 @@ pub struct Transformation {
     rotated: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-struct ImageSolvingData<'a> {
+#[derive(PartialEq, Eq, Clone)]
+struct ImageSolvingData<'a, 'b> {
     size: usize,
-    remaining_tiles: Vec<Tile>,
-    grid: Vec<Option<TilePlacement>>,
-    edges_map: Cow<'a, EdgeMap>,
+    remaining_tiles: Vec<&'a Tile>,
+    grid: Vec<Option<TilePlacement<'a>>>,
+    edges_map: Cow<'b, EdgeMap<'a>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-struct ImageSolution {
+#[derive(PartialEq, Eq, Clone)]
+struct ImageSolution<'a> {
     size: usize,
-    grid: Vec<TilePlacement>,
+    grid: Vec<TilePlacement<'a>>,
 }
 
-#[derive(PartialEq, Eq, Clone, Hash)]
-pub struct TilePlacement(Tile, Transformation);
+#[derive(PartialEq, Eq, Copy, Clone, Hash)]
+pub struct TilePlacement<'a>(&'a Tile, Transformation);
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Direction {
@@ -55,7 +55,7 @@ pub struct Image {
     data: Vec<bool>,
 }
 
-type EdgeMap = HashMap<Vec<bool>, Vec<(TilePlacement, Direction)>>;
+type EdgeMap<'a> = HashMap<Vec<bool>, Vec<(TilePlacement<'a>, Direction)>>;
 
 lazy_static! {
     static ref TILE_REGEX: Regex = Regex::new(r"^Tile ([0-9]+):$").unwrap();
@@ -127,53 +127,53 @@ impl Transformation {
     }
 }
 
-impl ImageSolvingData<'_> {
-    fn all_edges(tiles: &[Tile]) -> EdgeMap {
-        tiles
-    .iter()
-    .flat_map(|tile| {
-        Transformation::all().flat_map(move |transform| {
-            let placement = TilePlacement(tile.clone(), transform);
-            Direction::all().map(move |direction| {
-                let edge = placement.edge(direction);
-                (edge, placement.clone(), direction)
+fn all_edges(tiles: &[Tile]) -> EdgeMap {
+    tiles
+        .iter()
+        .flat_map(|tile| {
+            Transformation::all().flat_map(move |transform| {
+                let placement = TilePlacement(tile, transform);
+                Direction::all().map(move |direction| {
+                    let edge = placement.edge(direction);
+                    (edge, placement, direction)
+                })
             })
         })
-    })
-    .fold(
-        HashMap::new(),
-        |mut result: EdgeMap,
-         (edge, placement, direction): (Vec<bool>, TilePlacement, Direction)| {
-            if !result.contains_key(&edge) {
-                result.insert(edge.clone(), vec![]);
-            }
+        .fold(
+            HashMap::new(),
+            |mut result: EdgeMap,
+             (edge, placement, direction): (Vec<bool>, TilePlacement, Direction)| {
+                if !result.contains_key(&edge) {
+                    result.insert(edge.clone(), vec![]);
+                }
 
-            let vec = result.get_mut(&edge).unwrap();
-            vec.push((placement, direction));
+                let vec = result.get_mut(&edge).unwrap();
+                vec.push((placement, direction));
 
-            result
-        },
-    )
-    }
+                result
+            },
+        )
+}
 
-    fn new(tiles: &[Tile]) -> anyhow::Result<ImageSolvingData> {
+impl<'a, 'b> ImageSolvingData<'a, 'b> {
+    fn new(tiles: &'a [Tile]) -> anyhow::Result<ImageSolvingData<'a, 'a>> {
         let size = (tiles.len() as f64).sqrt().floor();
         if size.fract() > 0.001 {
             return Err(anyhow!("Tiles do not fit into a square"));
         }
         let size = size as usize;
 
-        let edges_map = ImageSolvingData::all_edges(tiles);
+        let edges_map = all_edges(tiles);
 
         Ok(ImageSolvingData {
             size,
             grid: iter::repeat(None).take(tiles.len()).collect(),
-            remaining_tiles: tiles.to_vec(),
+            remaining_tiles: tiles.iter().collect(),
             edges_map: Cow::Owned(edges_map),
         })
     }
 
-    fn fill(&self) -> Vec<ImageSolution> {
+    fn fill(&self) -> Vec<ImageSolution<'a>> {
         let first_unfilled_tile = self.grid.iter().enumerate().find_map(|(i, placement)| {
             if let None = placement {
                 Some(i)
@@ -196,7 +196,7 @@ impl ImageSolvingData<'_> {
             size: self.size,
             grid: {
                 let mut x = self.grid.clone();
-                x[first_unfilled_tile] = Some(placement.clone());
+                x[first_unfilled_tile] = Some(placement);
                 x
             },
             remaining_tiles: {
@@ -204,7 +204,7 @@ impl ImageSolvingData<'_> {
                     .remaining_tiles
                     .iter()
                     .filter(|&tile| tile != &placement.0)
-                    .cloned()
+                    .copied()
                     .collect();
                 x
             },
@@ -217,22 +217,18 @@ impl ImageSolvingData<'_> {
         next_images.flat_map(|image| image.fill()).collect()
     }
 
-    fn solution(&self) -> Option<ImageSolution> {
+    fn solution(&self) -> Option<ImageSolution<'a>> {
         if self.grid.iter().all(|x| x.is_some()) {
             Some(ImageSolution {
                 size: self.size,
-                grid: self
-                    .grid
-                    .iter()
-                    .map(|x| x.as_ref().unwrap().clone())
-                    .collect(),
+                grid: self.grid.iter().map(|x| *x.as_ref().unwrap()).collect(),
             })
         } else {
             None
         }
     }
 
-    fn matches_for(&self, x: usize, y: usize) -> Vec<TilePlacement> {
+    fn matches_for(&self, x: usize, y: usize) -> Vec<TilePlacement<'a>> {
         let edge_above = if y != 0 {
             self.tile_at(x, y - 1).map(|tile| tile.bottom_edge())
         } else {
@@ -287,9 +283,9 @@ impl ImageSolvingData<'_> {
                         })
                     })
                     .collect(),
-                (None, Some(set)) | (Some(set), None) => set.into_iter().cloned().collect(),
+                (None, Some(set)) | (Some(set), None) => set.into_iter().copied().collect(),
                 (Some(up_set), Some(left_set)) => {
-                    up_set.intersection(&left_set).map(|&x| x.clone()).collect()
+                    up_set.intersection(&left_set).map(|&x| *x).collect()
                 }
             };
 
@@ -320,7 +316,7 @@ impl ImageSolvingData<'_> {
     }
 }
 
-impl ImageSolution {
+impl ImageSolution<'_> {
     fn tile_at(&self, x: usize, y: usize) -> Option<&TilePlacement> {
         if x > self.size {
             return None;
@@ -371,7 +367,7 @@ impl ImageSolution {
     }
 }
 
-impl TilePlacement {
+impl TilePlacement<'_> {
     fn right_edge(&self) -> Vec<bool> {
         let size = self.0.size;
         (0..size).map(|y| self.pixel_at(size - 1, y)).collect()
@@ -433,7 +429,7 @@ impl TilePlacement {
     }
 }
 
-impl Debug for TilePlacement {
+impl Debug for TilePlacement<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TilePlacement")
             .field("tile_id", &self.0.tile_id)
@@ -609,7 +605,7 @@ mod part_one {
     #[test]
     fn test_edges() {
         let test_tile = TEST_INPUT.iter().find(|x| x.tile_id == 2311).unwrap();
-        let placement = TilePlacement(test_tile.clone(), Transformation::default());
+        let placement = TilePlacement(test_tile, Transformation::default());
 
         assert_eq!(edge_to_string(&placement.top_edge()), "..##.#..#.");
         assert_eq!(edge_to_string(&placement.bottom_edge()), "..###..###");
@@ -621,14 +617,10 @@ mod part_one {
     fn test_selection() {
         let mut test_image = ImageSolvingData::new(TEST_INPUT.as_slice()).unwrap();
 
-        let test_tile = TEST_INPUT
-            .iter()
-            .find(|x| x.tile_id == 1951)
-            .unwrap()
-            .clone();
+        let test_tile = TEST_INPUT.iter().find(|x| x.tile_id == 1951).unwrap();
 
         test_image.grid[0] = Some(TilePlacement(
-            test_tile.clone(),
+            test_tile,
             Transformation {
                 flip_y: true,
                 ..Default::default()
@@ -638,7 +630,7 @@ mod part_one {
         test_image.remaining_tiles = test_image
             .remaining_tiles
             .into_iter()
-            .filter(|tile| tile != &test_tile)
+            .filter(|&tile| tile != test_tile)
             .collect();
 
         let matches = test_image.matches_for(1, 0);
