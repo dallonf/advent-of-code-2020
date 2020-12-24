@@ -5,29 +5,32 @@ use std::collections::HashMap;
 use shared::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Vec<u32> = vec![5, 2, 8, 16, 18, 0, 1];
+    static ref PUZZLE_INPUT: Vec<usize> = vec![5, 2, 8, 16, 18, 0, 1];
 }
 
-pub fn result_of_turn(starting: &[u32], final_turn_number: u32) -> u32 {
+pub fn result_of_turn(starting: &[usize], final_turn_number: usize) -> usize {
     let starting_turns = starting.len() - 1;
-    let mut memory: HashMap<u32, u32> = starting
-        .iter()
-        .copied()
-        .take(starting_turns) // we'll play the last starting number directly
-        .enumerate()
-        .map(|(i, x)| (x, i as u32))
-        .collect();
+    let mut memory: Vec<Option<usize>> = vec![None; *starting.iter().max().unwrap() + 1];
+    // fill out the first few numbers
+    // we'll play the last starting number directly
+    for (i, x) in starting.iter().copied().take(starting_turns).enumerate() {
+        memory[x] = Some(i);
+    }
 
     let mut prev_number = starting[starting_turns];
-    for turn_index in starting_turns as u32 + 1..final_turn_number {
-        let last_turn_of_prev_number = memory.get(&prev_number);
+    for turn_index in (starting_turns + 1)..final_turn_number {
+        let last_turn_of_prev_number = memory.get(prev_number).copied().unwrap_or(None);
         let turns_since_repeat = if let Some(last_turn_of_prev_number) = last_turn_of_prev_number {
             (turn_index - 1) - last_turn_of_prev_number
         } else {
             0
         };
 
-        memory.insert(prev_number, turn_index - 1);
+        if memory.len() - 1 < prev_number {
+            let extension = vec![None; prev_number - (memory.len() - 1)];
+            memory.extend_from_slice(&extension);
+        }
+        memory[prev_number] = Some(turn_index - 1);
         prev_number = turns_since_repeat;
     }
 
