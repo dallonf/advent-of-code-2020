@@ -11,3 +11,4 @@ doctest= false
 
 [dependencies]
 shared = { path = "../../shared" }
+rayon = "1.5.0"
