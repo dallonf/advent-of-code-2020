@@ -1,8 +1,10 @@
 // Day 24: Lobby Layout
 
+use std::collections::HashSet;
+
 use shared::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     E,
     SE,
@@ -12,10 +14,11 @@ pub enum Direction {
     NE,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tile(i64, i64, i64);
 
 lazy_static! {
+    static ref TEST_INPUT: Vec<&'static str> = puzzle_input::lines(include_str!("test_input.txt"));
     static ref PUZZLE_INPUT: Vec<&'static str> =
         puzzle_input::lines(include_str!("puzzle_input.txt"));
 }
@@ -64,6 +67,23 @@ impl Tile {
     }
 }
 
+pub fn flip_tiles(instructions: &[&str]) -> anyhow::Result<usize> {
+    let tiles: anyhow::Result<HashSet<Tile>> =
+        instructions
+            .iter()
+            .try_fold(HashSet::new(), |mut tiles, &instruction| {
+                let tile = Tile::from_directions_str(instruction)?;
+                if tiles.contains(&tile) {
+                    tiles.remove(&tile);
+                } else {
+                    tiles.insert(tile);
+                }
+                Ok(tiles)
+            });
+
+    Ok(tiles?.len())
+}
+
 #[cfg(test)]
 mod part_one {
     use super::*;
@@ -77,15 +97,15 @@ mod part_one {
         );
     }
 
-    // #[test]
-    // fn test_cases() {
-    //     assert_eq!(1 + 1, 2);
-    // }
+    #[test]
+    fn test_case() {
+        assert_eq!(flip_tiles(TEST_INPUT.as_slice()).unwrap(), 10);
+    }
 
-    // #[test]
-    // fn answer() {
-    //     assert_eq!(*PUZZLE_INPUT, Vec::<String>::new());
-    // }
+    #[test]
+    fn answer() {
+        assert_eq!(flip_tiles(PUZZLE_INPUT.as_slice()).unwrap(), 495);
+    }
 }
 
 // #[cfg(test)]
