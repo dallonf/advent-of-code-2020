@@ -1,7 +1,5 @@
 // Day 15: Rambunctious Recitation
 
-use std::collections::HashMap;
-
 use shared::prelude::*;
 
 lazy_static! {
