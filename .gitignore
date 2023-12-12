@@ -13,3 +13,5 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+puzzle_input.txt
